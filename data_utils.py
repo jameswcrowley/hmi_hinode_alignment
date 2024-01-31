@@ -189,7 +189,6 @@ def interpolate(parameters,
     interpolated_HMI_B = f(hinodey, hinodex, grid=False)[:, ::-1]
     return interpolated_HMI_B
 
-
 def fetch_data(path_to_slits,
                path_to_HMI = '~/sunpy/data/'):
     """
@@ -255,8 +254,6 @@ def fetch_data(path_to_slits,
     path = path_to_HMI + '/{instrument}/align/'
 
     Fido.fetch(hmi_results[0], path = path)
-
-    # TODO: somewhere in here, I need to read-in/save HMI coordinates... just need to do this once, since same for each HMI map.
 
     return closest_index
 
@@ -378,6 +375,34 @@ def assemble_and_compare_interpolated_HMI(parameters,
         return interpolated_HMI
 
 
+def plot_and_viz_compare(hinode_B,
+                         HMI_B,
+                         parameters):
+    """
+    Plot and visually compare:
+        plot the interpolated HMI dataset vs. the inverted Hinode dataset, show the image.
+
+
+
+    :return: None
+    """
+    dx = parameters[0]
+    dy = parameters[1]
+
+    plt.figure(figsize=[15, 5])
+
+    plt.subplot(1, 2, 1)
+    plt.title('OUR Inverted Hinode Dataset')
+    plt.imshow(hinode_B[::-1], vmin=-100, vmax=100, cmap='PuOr');
+    plt.colorbar()
+
+    plt.subplot(1, 2, 2)
+    plt.title('HMI Interpolated Data, shifted (' + str(dx) + ', ' + str(dy) + ') arcsec')
+    plt.imshow(HMI_B[:, ::-1], vmin=-100, vmax=100, cmap='PuOr');
+    plt.colorbar()
+
+    plt.show()
+
 def minimize(initial_guess,
              slits_sorted,
              path_to_slits,
@@ -411,7 +436,8 @@ def minimize(initial_guess,
         if converged, return best fit paramters
     """
 
-    # TODO: add functionality here to fix roll angle if fails to converge
+
+    # TODO: add functionality here to fix roll angle = 0 if fails to converge
     if bounds is not None:
         x = minimize(assemble_and_compare_interpolated_HMI,
                      x0=initial_guess,
@@ -440,14 +466,70 @@ def minimize(initial_guess,
 
     return x.success, x.x
 
-def plot_and_viz_compare():
+def run(path_to_slits,
+        hinode_B,
+        bounds = None):
     """
-    Plot and visually compare:
-        plot the interpolated HMI dataset vs. the inverted Hinode dataset, show the image.
+    Run:
+        I want this to be the funciton which calls all the others to run the sequence, almost like a main
+
+    :param path_to_slits:
+
+    :param hinode_B:
+
+    :param bounds:
 
 
 
-    :return: None
+    :return: 
     """
+    # read names of slits:
+    slits = os.listdir(path_to_slits)
+    slits_sorted = sorted(slits)  # sort in time via name - this may not be necessary, but just to make sure
 
-    plt.show()
+    # download and read-in all the needed HMI data:
+    closest_index = fetch_data(path_to_slits)
+    hmix, hmiy, all_HMI_data = read_in_HMI()
+
+    N_slits = len(slits_sorted)
+    middle_slit = slits_sorted[N_slits//2]
+    middle_slit_header = fits.open(path_to_slits + middle_slit)[0].header
+
+    xcen = middle_slit_header['XCEN']
+    ycen = middle_slit_header['YCEN']
+    xdelt = middle_slit_header['CDELT1']
+    ydelt = middle_slit_header['CDELT2']
+    theta = 0
+
+    parameters = [xcen, ycen, xdelt, ydelt, theta]
+
+    converged = False
+    minimize_counter = 0
+
+    while not converged:
+        converged, parameters = minimize(parameters,
+                                        slits_sorted,
+                                        path_to_slits,
+                                        all_HMI_data,
+                                        hmix,
+                                        hmiy,
+                                        hinode_B,
+                                        closest_index,
+                                        bounds)
+        minimize_counter += 1
+
+        if minimize_counter >= 5:
+            raise Exception('Failed to Solve. Exiting.')
+
+
+    # after converged, vizualize it:
+    final_HMI = assemble_and_compare_interpolated_HMI(slits_sorted,
+                                                      path_to_slits,
+                                                      all_HMI_data,
+                                                      hmix,
+                                                      hmiy,
+                                                      hinode_B,
+                                                      closest_index,
+                                                      False)
+
+    plot_and_viz_compare(hinode_B, final_HMI, parameters)
