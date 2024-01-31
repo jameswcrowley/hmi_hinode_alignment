@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 
 import scipy.interpolate as interpolate
 from scipy.optimize import minimize as scipy_minimize
+from scipy.ndimage import gaussian_filter as gf
 
 
 def get_coordinates(slits, path_to_slits, theta=0):
@@ -369,17 +370,27 @@ def assemble_and_compare_interpolated_HMI(parameters,
         else:  # there are HMI maps corresponding to these slits
             index1 = slit_indices[0] - 1  # pad it by a row on either side
             index2 = slit_indices[-1] + 1
-            interpolated_HMI[index1:index2, :] = interpolate_section(parameters,
-                                                                     slits_sorted,
-                                                                     all_HMI_data[:, :, i],
-                                                                     hmix,
-                                                                     hmiy,
-                                                                     path_to_slits,
-                                                                     (index1, index2))
+            interpolated_HMI[index1:index2, :][::-1, ::-1] = interpolate_section(parameters,
+                                                                                 slits_sorted,
+                                                                                 all_HMI_data[:, :, i],
+                                                                                 hmix,
+                                                                                 hmiy,
+                                                                                 path_to_slits,
+                                                                                 (index1, index2))
 
     if flag:
-        psuedo_chi_squared = np.sum((hinode_B - interpolated_HMI) ** 2)
-        return psuedo_chi_squared
+        S0 = np.zeros_like(hinode_B)
+        S0[abs(hinode_B) > 100] = 1
+
+        S1 = gf(S0, sigma=1.5)
+
+        S2 = np.zeros_like(S1)
+        S2[S1 > 0.2] = 1
+
+        Q = np.sum(abs(interpolated_HMI) * S2)
+
+        return 1 / Q
+
     else:
         return interpolated_HMI
 
@@ -517,6 +528,9 @@ def run(path_to_slits,
     theta = 0
 
     parameters = [xcen, ycen, xdelt, ydelt, theta]
+    parameters = [35, 25, 0.927, 1.01, 0]
+    bounds = (25, 40), (15, 30), (0.9, 1.1), (0.9, 1.1) # Hard coding these in for now... TODO: update this to be from header
+    print(parameters)
 
     converged = False
     minimize_counter = 0
