@@ -312,7 +312,8 @@ def assemble_and_compare_interpolated_HMI(parameters,
                                           hmix,
                                           hmiy,
                                           hinode_B,
-                                          closest_index):
+                                          closest_index,
+                                          flag):
     """
     Assemble Interpolated HMI:
         Calls interpolate multiple times, for each HMI 45s magnetogram closest to at least one of the Hinode fits slits
@@ -341,6 +342,9 @@ def assemble_and_compare_interpolated_HMI(parameters,
         magnetic
     :param closest_index:
         a list of the index of the closest HMI dataset to each slit
+    :param flag:
+        true: return psuedo-chi-squared (for minimizing parameters)
+        false: return assembled map (for vizualizing once minimization is done)
 
     :return interpolated_HMI:
         The final interpolated HMI image, created from multiple HMI 45s observations
@@ -367,8 +371,11 @@ def assemble_and_compare_interpolated_HMI(parameters,
                                                                         path_to_slits,
                                                                         (index1, index2))
 
-    psuedo_chi_squared = np.sum((hinode_B[::-1] - interpolated_HMI) ** 2)
-    return psuedo_chi_squared
+    if flag:
+        psuedo_chi_squared = np.sum((hinode_B[::-1] - interpolated_HMI) ** 2)
+        return psuedo_chi_squared
+    else:
+        return interpolated_HMI
 
 
 def minimize(initial_guess,
@@ -415,7 +422,8 @@ def minimize(initial_guess,
                              hmix,
                              hmiy,
                              hinode_B,
-                             closest_index))
+                             closest_index,
+                             True))
     else:
         x = minimize(assemble_and_compare_interpolated_HMI,
                      x0=initial_guess,
@@ -426,7 +434,8 @@ def minimize(initial_guess,
                            hmix,
                            hmiy,
                            hinode_B,
-                           closest_index),
+                           closest_index,
+                           True),
                      bounds = bounds)
 
     return x.success, x.x
