@@ -323,6 +323,8 @@ def assemble_and_compare_interpolated_HMI(parameters,
         Was originally just going to assemble HMI, but in order to minimize parameters it's important that the assembly
         and the comparison are done in the same function.
 
+
+
     :param parameters:
         the set of 5 parameters to offset the Hinode dataset by
     :param slits_sorted:
@@ -418,13 +420,25 @@ def minimize(initial_guess,
         x = minimize(assemble_and_compare_interpolated_HMI,
                      x0=initial_guess,
                      method='Nelder-Mead',
-                     bounds = bounds,
                      args=(slits_sorted,
                            path_to_slits,
                            all_HMI_data,
                            hmix,
                            hmiy,
                            hinode_B,
-                           closest_index))
+                           closest_index),
+                     bounds = bounds)
 
     return x.success, x.x
+
+def plot_and_viz_compare():
+    """
+    Plot and visually compare:
+        plot the interpolated HMI dataset vs. the inverted Hinode dataset, show the image.
+
+
+
+    :return: None
+    """
+
+    plt.show()
