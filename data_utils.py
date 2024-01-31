@@ -1,23 +1,14 @@
-import astropy.units as u
-from sunpy.net import Fido, attrs as a
-
-import astropy.io.fits as fits
-import numpy as np
-import pandas as pd
-
-import matplotlib.pyplot as plt
 import os
 
-import datetime
-from dateutil.parser import parse
-
+from sunpy.net import Fido, attrs as a
 import sunpy
 from sunpy import map
-from matplotlib import patches
-
-import astropy.units as u
+import astropy.io.fits as fits
 from astropy.time import Time
-from astropy.coordinates import SkyCoord
+import astropy.units as u
+
+import numpy as np
+import matplotlib.pyplot as plt
 
 import scipy.interpolate as interpolate
 
@@ -114,7 +105,13 @@ def get_slit_coords(xcen,
     return slit_coordinates
 
 
-def interpolate(parameters, slits_sorted, full_hmi, hmix, hmiy, path_to_slits, slit_indices=(0, 192)):
+def interpolate(parameters,
+                slits_sorted,
+                full_hmi,
+                hmix,
+                hmiy,
+                path_to_slits,
+                slit_indices=(0, 192)):
    """
    Interpolate:
         for a subset of slits and offset parameters, interpolate HMI data onto
@@ -143,7 +140,6 @@ def interpolate(parameters, slits_sorted, full_hmi, hmix, hmiy, path_to_slits, s
         an array of the same size as the slits subset passed in. HMI magnetic data interpolated onto the Hinode
         grid from the Hinode header, offset by the input parameters.
    """
-
     dx = parameters[0] * u.arcsec
     dy = parameters[1] * u.arcsec
 
@@ -157,7 +153,7 @@ def interpolate(parameters, slits_sorted, full_hmi, hmix, hmiy, path_to_slits, s
 
     coordinates = get_coordinates(slits_subset, path_to_slits, theta)
 
-    # unpacking coordiantes into x and y arrays
+    # unpacking coordinates into x and y arrays
     hinodex = coordinates[:, 1, :] * u.arcsec
     hinodey = coordinates[:, 0, :] * u.arcsec
 
@@ -190,11 +186,12 @@ def interpolate(parameters, slits_sorted, full_hmi, hmix, hmiy, path_to_slits, s
 
     # interpolating this square HMI data ONTO the irregular Hinode coordinates
 
-    interpolated_HMI_B = f(hinodey, hinodex, grid=False)
+    interpolated_HMI_B = f(hinodey, hinodex, grid=False)[:, ::-1]
+    return interpolated_HMI_B
 
-    return interpolated_HMI_B[:, ::-1]
 
-def fetch_data(path_to_slits, path_to_HMI = '~/sunpy/data/'):
+def fetch_data(path_to_slits,
+               path_to_HMI = '~/sunpy/data/'):
     """
     Fetch Data:
         uses Sunpy's Fido to download all 45s HMI magnetograms covered by the given Hinode slits, +/- 1
@@ -266,7 +263,8 @@ def fetch_data(path_to_slits, path_to_HMI = '~/sunpy/data/'):
 def read_in_HMI(path_to_HMI = '~/sunpy/data/'):
     """
     Read in HMI:
-        Quick function to read in and stack HMI 45s data as a stacked numpy array, since I prefer working as numpy arrays.
+        Quick function to read in the locally saved HMI 45s data and stack it as a stacked numpy array,
+        since I prefer working as numpy arrays.
 
         This may be possible by only using sunpy objects, but not in the way I implemented it.
 
@@ -279,6 +277,10 @@ def read_in_HMI(path_to_HMI = '~/sunpy/data/'):
         A stacked numpy array of ALL HMI 45s magnetograms which are co-temporal with the Hinode raster.
 
         Shape is (4096, 4096, N_hmi_datasets)
+    :return: hmix:
+        array of HMI x coordinates, in arcsec, shape is (4069, 4069)
+    :return: hmiy:
+        array of HMI y coordinates, in arcsec, shape is (4069, 4069)
     """
 
     path = path_to_HMI + '/{instrument}/align/'
@@ -288,6 +290,8 @@ def read_in_HMI(path_to_HMI = '~/sunpy/data/'):
 
     # save the first one, just to avoid stacking wrong with numpy concatenate:
     all_HMI_data[:, :, 0] = sunpy.map.Map(path + all_HMI_maps[0]).data
+    hmix = sunpy.map.all_coordinates_from_map(path + all_HMI_maps[0]).Tx
+    hmiy = sunpy.map.all_coordinates_from_map(path + all_HMI_maps[0]).Tx
 
     for i, HMI_map in enumerate(all_HMI_maps[1:]):
         if 'hmi_m_' in HMI_map:
@@ -297,13 +301,130 @@ def read_in_HMI(path_to_HMI = '~/sunpy/data/'):
         else:
             pass
 
-    return all_HMI_data
+    return all_HMI_data, hmix, hmiy
 
 
-def assemble_interpolated_HMI(parameters, N_slits, all_HMI_data, closest_index):
+
+def assemble_and_compare_interpolated_HMI(parameters,
+                                          slits_sorted,
+                                          path_to_slits,
+                                          all_HMI_data,
+                                          hmix,
+                                          hmiy,
+                                          hinode_B,
+                                          closest_index):
     """
     Assemble Interpolated HMI:
         Calls interpolate multiple times, for each HMI 45s magnetogram closest to at least one of the Hinode fits slits
-    :return:
+
+        Finally, this compares the interpolated map to the inverted Hinode B, and produces a psuedo-chi squared.
+        The minimize function then finds the parameter set to minimize the psuedo-chi squared.
+
+        Was originally just going to assemble HMI, but in order to minimize parameters it's important that the assembly
+        and the comparison are done in the same function.
+
+    :param parameters:
+        the set of 5 parameters to offset the Hinode dataset by
+    :param slits_sorted:
+        a list of strings, names of the slits in the Hinode observation
+    :param path_to_slits:
+        a string, absolute path to where the slits are saved
+    :param all_HMI_data:
+        the stacked array of all HMI data covering the observations
+    :param hmix:
+        hmi x coordinates, in arcsec
+    :param hmiy:
+        hmi y coordinates, in arcsec
+    :param hinode_B:
+        magnetic
+    :param closest_index:
+        a list of the index of the closest HMI dataset to each slit
+
+    :return interpolated_HMI:
+        The final interpolated HMI image, created from multiple HMI 45s observations
     """
 
+    N_slits = len(closest_index)
+    interpolated_HMI = np.zeros((N_slits, 192))
+
+    last_HMI_index = closest_index[-1]
+
+    for i in range(last_HMI_index):
+        # mask the closest_index array to only the ones closest to the current HMI dataset:
+        slit_indices = np.array(np.where(np.array(closest_index) == i)[0])
+        if slit_indices.size == 0:
+            pass
+        else:  # there are HMI maps corresponding to these slits
+            index1 = slit_indices[0] - 1 # pad it by a row on either side
+            index2 = slit_indices[-1] + 1
+            interpolated_HMI[index1:index2, :][::-1, :] = interpolate(parameters,
+                                                                        slits_sorted,
+                                                                        all_HMI_data[:, :, i],
+                                                                        hmix,
+                                                                        hmiy,
+                                                                        path_to_slits,
+                                                                        (index1, index2))
+
+    psuedo_chi_squared = np.sum((hinode_B[::-1] - interpolated_HMI) ** 2)
+    return psuedo_chi_squared
+
+
+def minimize(initial_guess,
+             slits_sorted,
+             path_to_slits,
+             all_HMI_data,
+             hmix,
+             hmiy,
+             hinode_B,
+             closest_index,
+             bounds = None):
+    """
+    Minimize:
+        a function which uses scipy's minimize to find the parameter set which best aligns the data
+
+
+
+    :param initial_guess:
+        a list of initial guess set of 5 parameters to start the minimizer at
+    :param slits_sorted:
+    :param path_to_slits:
+    :param all_HMI_data:
+    :param hmix:
+    :param hmiy:
+    :param hinode_B:
+    :param closest_index:
+    :param bounds:
+        optional, a list of touples, used to bound the
+
+    :return flag:
+        a bool, if scipy's minimizer convereged
+    :return parameters:
+        if converged, return best fit paramters
+    """
+
+    # TODO: add functionality here to fix roll angle if fails to converge
+    if bounds is not None:
+        x = minimize(assemble_and_compare_interpolated_HMI,
+                     x0=initial_guess,
+                     method='Nelder-Mead',
+                     args = (slits_sorted,
+                             path_to_slits,
+                             all_HMI_data,
+                             hmix,
+                             hmiy,
+                             hinode_B,
+                             closest_index))
+    else:
+        x = minimize(assemble_and_compare_interpolated_HMI,
+                     x0=initial_guess,
+                     method='Nelder-Mead',
+                     bounds = bounds,
+                     args=(slits_sorted,
+                           path_to_slits,
+                           all_HMI_data,
+                           hmix,
+                           hmiy,
+                           hinode_B,
+                           closest_index))
+
+    return x.success, x.x
