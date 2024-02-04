@@ -108,12 +108,12 @@ def get_slit_coords(xcen,
 
 
 def interpolate_section(parameters,
-                slits_sorted,
-                full_hmi,
-                hmix,
-                hmiy,
-                path_to_slits,
-                slit_indices=(0, 192)):
+                        slits_sorted,
+                        full_hmi,
+                        hmix,
+                        hmiy,
+                        path_to_slits,
+                        slit_indices=(0, 192)):
     """
     Interpolate:
         for a subset of slits and offset parameters, interpolate HMI data onto
@@ -299,7 +299,7 @@ def read_in_HMI(path_to_HMI='~/sunpy/data/'):
 
     all_HMI_data[:, :, 0] = sunpy.map.Map(path + all_HMI_maps[0]).data
     hmix = sunpy.map.all_coordinates_from_map(test_map).Tx
-    hmiy = sunpy.map.all_coordinates_from_map(test_map).Tx
+    hmiy = sunpy.map.all_coordinates_from_map(test_map).Ty
 
     for i, HMI_map in enumerate(all_HMI_maps[1:]):
         if 'hmi_m_' in HMI_map:
@@ -362,13 +362,13 @@ def assemble_and_compare_interpolated_HMI(parameters,
 
     last_HMI_index = closest_index[-1]
 
-    for i in range(last_HMI_index):
+    for i in range(last_HMI_index + 1):
         # mask the closest_index array to only the ones closest to the current HMI dataset:
         slit_indices = np.array(np.where(np.array(closest_index) == i)[0])
         if slit_indices.size == 0:
             pass
         else:  # there are HMI maps corresponding to these slits
-            index1 = slit_indices[0] - 1  # pad it by a row on either side
+            index1 = slit_indices[0]  # pad it by a row on either side
             index2 = slit_indices[-1] + 1
             interpolated_HMI[index1:index2, :][::-1, ::-1] = interpolate_section(parameters,
                                                                                  slits_sorted,
@@ -413,17 +413,15 @@ def plot_and_viz_compare(hinode_B,
 
     plt.subplot(1, 2, 1)
     plt.title('OUR Inverted Hinode Dataset')
-    plt.imshow(hinode_B[::-1], vmin=-100, vmax=100, cmap='PuOr');
+    plt.imshow(hinode_B[::-1], vmin=-100, vmax=100, cmap='PuOr')
     plt.colorbar()
 
     plt.subplot(1, 2, 2)
     plt.title('HMI Interpolated Data, shifted (' + str(dx) + ', ' + str(dy) + ') arcsec')
-    plt.imshow(HMI_B[:, ::-1], vmin=-100, vmax=100, cmap='PuOr');
+    plt.imshow(HMI_B[::-1, ::-1], vmin=-100, vmax=100, cmap='PuOr')
     plt.colorbar()
 
     plt.show()
-    plt.savefig('~/Desktop/')
-
 
 def minimize(initial_guess,
              slits_sorted,
@@ -521,15 +519,16 @@ def run(path_to_slits,
     middle_slit = slits_sorted[N_slits // 2]
     middle_slit_header = fits.open(path_to_slits + middle_slit)[0].header
 
-    xcen = middle_slit_header['XCEN']
-    ycen = middle_slit_header['YCEN']
-    xdelt = middle_slit_header['CDELT1']
-    ydelt = middle_slit_header['CDELT2']
-    theta = 0
-
-    parameters = [xcen, ycen, xdelt, ydelt, theta]
+    # xcen = middle_slit_header['XCEN']
+    # ycen = middle_slit_header['YCEN']
+    # xdelt = middle_slit_header['CDELT1']
+    # ydelt = middle_slit_header['CDELT2']
+    # theta = 0
+    #
+    # parameters = [xcen, ycen, xdelt, ydelt, theta]
     parameters = [35, 25, 0.927, 1.01, 0]
-    bounds = (25, 40), (15, 30), (0.9, 1.1), (0.9, 1.1) # Hard coding these in for now... TODO: update this to be from header
+    bounds = [(25, 40), (15, 30), (0.9, 1.1), (0.9, 1.1),
+              (0, 0)]  # Hard coding these in for now... TODO: update these to be from header
     print(parameters)
 
     converged = False
@@ -554,7 +553,8 @@ def run(path_to_slits,
             raise Exception('Failed to Solve. Exiting.')
 
     # after converged, vizualize it:
-    final_HMI = assemble_and_compare_interpolated_HMI(slits_sorted,
+    final_HMI = assemble_and_compare_interpolated_HMI(parameters,
+                                                      slits_sorted,
                                                       path_to_slits,
                                                       all_HMI_data,
                                                       hmix,

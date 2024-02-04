@@ -26,7 +26,8 @@ def main():
     path_to_slits = arg.path_to_slits
     name_hinode_B = arg.name_hinode_B
 
-    hinode_B = du.fits.open(name_hinode_B)[0].data
+    hinode_model = du.fits.open(name_hinode_B)[0].data
+    hinode_B = hinode_model[4, 10] * du.np.cos(hinode_model[6, 10] * du.np.pi/180)
 
     # --- interpolating ---
     du.run(path_to_slits,
