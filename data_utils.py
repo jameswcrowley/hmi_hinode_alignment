@@ -531,26 +531,19 @@ def run(path_to_slits,
               (0, 0)]  # Hard coding these in for now... TODO: update these to be from header
     print(parameters)
 
-    converged = False
-    minimize_counter = 0
+    converged, parameters = minimize(parameters,
+                                     slits_sorted,
+                                     path_to_slits,
+                                     all_HMI_data,
+                                     hmix,
+                                     hmiy,
+                                     hinode_B,
+                                     closest_index,
+                                     bounds)
+    print('Minimized: ' + str(converged))
 
-    while not converged:
-
-        converged, parameters = minimize(parameters,
-                                         slits_sorted,
-                                         path_to_slits,
-                                         all_HMI_data,
-                                         hmix,
-                                         hmiy,
-                                         hinode_B,
-                                         closest_index,
-                                         bounds)
-        minimize_counter += 1
-        print('Convergence Attempt #' + str(minimize_counter))
-        print('Minimized: ' + str(converged))
-
-        if minimize_counter >= 5:
-            raise Exception('Failed to Solve. Exiting.')
+    if not converged:
+        raise Exception('Failed to Solve. Exiting.')
 
     # after converged, vizualize it:
     final_HMI = assemble_and_compare_interpolated_HMI(parameters,
