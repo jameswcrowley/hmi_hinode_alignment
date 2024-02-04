@@ -1,6 +1,9 @@
 # hmi_hinode_alignment
 A code for determining the helio-projective (HP) coordinates of Hinode magnetograms using co-temporal HMI magnetograms.
 
+![Alt text](example_alignment.png)
+
+
 ---
 ## General Overview
 We upscale HMI data to Hinode's resolution by interpolating HMI onto an irregular grid of HP coordinates, and cross-correlating the interpolated HMI magnetograms with the Hinode observations. 
