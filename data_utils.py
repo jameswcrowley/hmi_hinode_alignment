@@ -516,8 +516,8 @@ def run(path_to_slits,
 
     print('Fido successfully downloaded HMI data.')
 
-    parameters = [35, 25, 0.927, 1.01, 0]
-    bounds = [(-60, 60), (-60, 60), (0.8, 1.2), (0.8, 1.2), (0, 0)]
+    parameters = [26, 31, 0.983, 0.99, 0]
+    bounds = [(-40, 40), (-40, 40), (0.9, 1.1), (0.9, 1.1), (0, 0)]
 
     converged, parameters = minimize(parameters,
                                      slits_sorted,
