@@ -516,20 +516,8 @@ def run(path_to_slits,
 
     print('Fido successfully downloaded HMI data.')
 
-    middle_slit = slits_sorted[N_slits // 2]
-    middle_slit_header = fits.open(path_to_slits + middle_slit)[0].header
-
-    # xcen = middle_slit_header['XCEN']
-    # ycen = middle_slit_header['YCEN']
-    # xdelt = middle_slit_header['CDELT1']
-    # ydelt = middle_slit_header['CDELT2']
-    # theta = 0
-    #
-    # parameters = [xcen, ycen, xdelt, ydelt, theta]
     parameters = [35, 25, 0.927, 1.01, 0]
-    bounds = [(25, 40), (15, 30), (0.9, 1.1), (0.9, 1.1),
-              (0, 0)]  # Hard coding these in for now... TODO: update these to be from header
-    print(parameters)
+    bounds = [(-60, 60), (-60, 60), (0.8, 1.2), (0.8, 1.2), (0, 0)]
 
     converged, parameters = minimize(parameters,
                                      slits_sorted,
