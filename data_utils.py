@@ -30,7 +30,7 @@ def get_coordinates(slits, path_to_slits, theta=0):
         a float, roll angle correction to the p angle in the fits header (an angle offset to be minimized for later)
 
         The roll angle is the only offset parameter I can't correct for after the map is created,
-        which is why it's passed in here. The other are corrected for later... might change this TODO: think about changing to feeding in all paramters here...
+        which is why it's passed in here. The other are corrected for later... might change this
 
     :return coordinates:
         a numpy array, of shape (N_slits, 2, 192). HPC coordinates of each coordinate,
@@ -49,7 +49,6 @@ def get_coordinates(slits, path_to_slits, theta=0):
         temp_ydelt = temp_header['CDELT2']
 
         temp_p1 = temp_header['CROTA1']
-        temp_p2 = temp_header['CROTA1']  # TODO: This isn't being used... maybe a problem, check this...
 
         temp_coordinates = get_slit_coords(temp_xcens, temp_ycens, temp_xdelt, temp_ydelt, temp_p1, theta)
 
@@ -256,7 +255,7 @@ def fetch_data(path_to_slits,
         dateobs_i = Time(dateobs_i)
         closest_index.append(np.argmin(abs((dateobs_i - hmi_results['vso']['Start Time']).value)))
 
-    # fetch the data TODO: try to update this to only use data that's being used, don't download first/last if not needed
+    # fetch the data TODO: try to update this to only use data that's being used, don't download first/last if not needed, also to delete data afterwards.
     path = path_to_HMI + '/{instrument}/align/'
 
     Fido.fetch(hmi_results[0], path=path)
@@ -456,7 +455,6 @@ def minimize(initial_guess,
         if converged, return best fit paramters
     """
 
-    # TODO: add functionality here to fix roll angle = 0 if fails to converge
     if bounds is not None:
         x = scipy_minimize(assemble_and_compare_interpolated_HMI,
                            x0=initial_guess,
