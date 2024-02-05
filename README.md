@@ -23,4 +23,12 @@ Although other codes exist for this problem, we were interested in writing one w
      4. $\delta_x$: a multiplier offset to correct for the spacing of x-coordinates   
      5. $\delta_y$: a multiplier offset to correct for the spacing of y-coordinates (here, we're assuming the spacing in x and y are constant, but may be the wrong spacing from the Hinode header)
 
+#### An Example Run of the Code: 
+
+'''
+
+python interpolate.py --path_to_slits '/Users/jamescrowley/Documents/Fall_2023/research/LWS/raster1_slits/' --name_hinode_B '/Users/jamescrowley/Documents/Fall_2023/research/LWS/inv_res_mod_raster1.fits' --path_to_sunpy '/Users/jamescrowley/sunpy/'
+
+'''
+
 A work-in-progress. Contact: james.crowley (at) colorado.edu
