@@ -1,7 +1,7 @@
 # HMI / Hinode Co-alignment
 A code for determining the helio-projective (HP) coordinates of Hinode magnetograms using co-temporal HMI magnetograms.
 
-![Alt text](example_alignment.png)
+![Alt text](alignment.png)
 
 
 ---
