@@ -30,7 +30,7 @@ def get_coordinates(slits, path_to_slits, theta=0):
         a float, roll angle correction to the p angle in the fits header (an angle offset to be minimized for later)
 
         The roll angle is the only offset parameter I can't correct for after the map is created,
-        which is why it's passed in here. The other are corrected for later... might change this TODO: think about changing to feeding in all paramters here...
+        which is why it's passed in here. The other are corrected for later... might change this
 
     :return coordinates:
         a numpy array, of shape (N_slits, 2, 192). HPC coordinates of each coordinate,
@@ -49,7 +49,6 @@ def get_coordinates(slits, path_to_slits, theta=0):
         temp_ydelt = temp_header['CDELT2']
 
         temp_p1 = temp_header['CROTA1']
-        temp_p2 = temp_header['CROTA1']  # TODO: This isn't being used... maybe a problem, check this...
 
         temp_coordinates = get_slit_coords(temp_xcens, temp_ycens, temp_xdelt, temp_ydelt, temp_p1, theta)
 
@@ -256,7 +255,7 @@ def fetch_data(path_to_slits,
         dateobs_i = Time(dateobs_i)
         closest_index.append(np.argmin(abs((dateobs_i - hmi_results['vso']['Start Time']).value)))
 
-    # fetch the data TODO: try to update this to only use data that's being used, don't download first/last if not needed
+    # fetch the data TODO: try to update this to only use data that's being used, don't download first/last if not needed, also to delete data afterwards.
     path = path_to_HMI + '/{instrument}/align/'
 
     Fido.fetch(hmi_results[0], path=path)
@@ -456,7 +455,6 @@ def minimize(initial_guess,
         if converged, return best fit paramters
     """
 
-    # TODO: add functionality here to fix roll angle = 0 if fails to converge
     if bounds is not None:
         x = scipy_minimize(assemble_and_compare_interpolated_HMI,
                            x0=initial_guess,
@@ -516,41 +514,22 @@ def run(path_to_slits,
 
     print('Fido successfully downloaded HMI data.')
 
-    middle_slit = slits_sorted[N_slits // 2]
-    middle_slit_header = fits.open(path_to_slits + middle_slit)[0].header
+    parameters = [26, 31, 0.983, 0.99, 0]
+    bounds = [(-40, 40), (-40, 40), (0.9, 1.1), (0.9, 1.1), (0, 0)]
 
-    # xcen = middle_slit_header['XCEN']
-    # ycen = middle_slit_header['YCEN']
-    # xdelt = middle_slit_header['CDELT1']
-    # ydelt = middle_slit_header['CDELT2']
-    # theta = 0
-    #
-    # parameters = [xcen, ycen, xdelt, ydelt, theta]
-    parameters = [35, 25, 0.927, 1.01, 0]
-    bounds = [(25, 40), (15, 30), (0.9, 1.1), (0.9, 1.1),
-              (0, 0)]  # Hard coding these in for now... TODO: update these to be from header
-    print(parameters)
+    converged, parameters = minimize(parameters,
+                                     slits_sorted,
+                                     path_to_slits,
+                                     all_HMI_data,
+                                     hmix,
+                                     hmiy,
+                                     hinode_B,
+                                     closest_index,
+                                     bounds)
+    print('Minimized: ' + str(converged))
 
-    converged = False
-    minimize_counter = 0
-
-    while not converged:
-
-        converged, parameters = minimize(parameters,
-                                         slits_sorted,
-                                         path_to_slits,
-                                         all_HMI_data,
-                                         hmix,
-                                         hmiy,
-                                         hinode_B,
-                                         closest_index,
-                                         bounds)
-        minimize_counter += 1
-        print('Convergence Attempt #' + str(minimize_counter))
-        print('Minimized: ' + str(converged))
-
-        if minimize_counter >= 5:
-            raise Exception('Failed to Solve. Exiting.')
+    if not converged:
+        raise Exception('Failed to Solve. Exiting.')
 
     # after converged, vizualize it:
     final_HMI = assemble_and_compare_interpolated_HMI(parameters,

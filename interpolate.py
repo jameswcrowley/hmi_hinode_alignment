@@ -27,16 +27,13 @@ def main():
     name_hinode_B = arg.name_hinode_B
 
     hinode_model = du.fits.open(name_hinode_B)[0].data
-    hinode_B = hinode_model[4, 10] * du.np.cos(hinode_model[6, 10] * du.np.pi/180)
+    hinode_B = hinode_model[4, 10] * du.np.cos(hinode_model[6, 10] * du.np.pi / 180)
 
     # --- interpolating ---
     du.run(path_to_slits,
            hinode_B,
            bounds=[(25, 35), (15, 25), (0.9, 1.1), (0.9, 1.1), (-2, 2)])
 
-    if __name__ == '__main__':
-        main()
 
-
-main()
-
+if __name__ == '__main__':
+    main()
