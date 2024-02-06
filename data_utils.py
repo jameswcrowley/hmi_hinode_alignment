@@ -420,6 +420,7 @@ def plot_and_viz_compare(hinode_B,
 
     plt.show()
 
+
 def minimize(initial_guess,
              slits_sorted,
              path_to_slits,
@@ -542,3 +543,8 @@ def run(path_to_slits,
                                                       False)
 
     plot_and_viz_compare(hinode_B, final_HMI, parameters)
+
+    all_HMI_files = os.listdir(path_to_sunpy + '/data/HMI/align/')
+
+    for file in all_HMI_files:
+        os.remove(path_to_sunpy + '/data/HMI/align/' + file)
