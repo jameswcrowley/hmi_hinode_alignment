@@ -263,7 +263,7 @@ def fetch_data(path_to_slits,
     return closest_index
 
 
-def read_in_HMI(path_to_HMI='~/sunpy/data/'):
+def read_in_HMI(path_to_HMI='/Users/jamescrowley/sunpy/'):
     """
     Read in HMI:
         Quick function to read in the locally saved HMI 45s data and stack it as a stacked numpy array,
@@ -286,9 +286,7 @@ def read_in_HMI(path_to_HMI='~/sunpy/data/'):
         array of HMI y coordinates, in arcsec, shape is (4069, 4069)
     """
 
-    # path = path_to_HMI + '/HMI/align'
-    # hard coding this in for now, seeing if it's the problem: TODO: fix this
-    path = '/Users/jamescrowley/sunpy/data/HMI/align/'
+    path = path_to_HMI + '/data/HMI/align/'
 
     all_HMI_maps = sorted(os.listdir(path))
     all_HMI_data = np.zeros((4096, 4096, 1))
@@ -422,6 +420,7 @@ def plot_and_viz_compare(hinode_B,
 
     plt.show()
 
+
 def minimize(initial_guess,
              slits_sorted,
              path_to_slits,
@@ -486,6 +485,7 @@ def minimize(initial_guess,
 
 def run(path_to_slits,
         hinode_B,
+        path_to_sunpy,
         bounds=None):
     """
     Run:
@@ -509,7 +509,7 @@ def run(path_to_slits,
     print('Fits slits read in. Number of slits: ' + str(N_slits))
 
     # download and read-in all the needed HMI data:
-    closest_index = fetch_data(path_to_slits)
+    closest_index = fetch_data(path_to_slits, path_to_sunpy)
     all_HMI_data, hmix, hmiy = read_in_HMI()
 
     print('Fido successfully downloaded HMI data.')
@@ -543,3 +543,8 @@ def run(path_to_slits,
                                                       False)
 
     plot_and_viz_compare(hinode_B, final_HMI, parameters)
+
+    all_HMI_files = os.listdir(path_to_sunpy + '/data/HMI/align/')
+
+    for file in all_HMI_files:
+        os.remove(path_to_sunpy + '/data/HMI/align/' + file)
