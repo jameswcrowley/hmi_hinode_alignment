@@ -25,10 +25,6 @@ Although other codes exist for this problem, we were interested in writing one w
 
 #### An Example Run of the Code: 
 
-'''
-
-python interpolate.py --path_to_slits '/Users/jamescrowley/Documents/Fall_2023/research/LWS/raster1_slits/' --name_hinode_B '/Users/jamescrowley/Documents/Fall_2023/research/LWS/inv_res_mod_raster1.fits' --path_to_sunpy '/Users/jamescrowley/sunpy/'
-
-'''
+    python interpolate.py --path_to_slits '/Users/jamescrowley/Documents/Fall_2023/research/LWS/raster1_slits/' --name_hinode_B '/Users/jamescrowley/Documents/Fall_2023/research/LWS/inv_res_mod_raster1.fits' --path_to_sunpy '/Users/jamescrowley/sunpy/'
 
 A work-in-progress. Contact: james.crowley (at) colorado.edu
