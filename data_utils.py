@@ -255,8 +255,8 @@ def fetch_data(path_to_slits,
         dateobs_i = Time(dateobs_i)
         closest_index.append(np.argmin(abs((dateobs_i - hmi_results['vso']['Start Time']).value)))
 
-    # fetch the data TODO: try to update this to only use data that's being used, don't download first/last if not needed, also to delete data afterwards.
-    path = path_to_HMI + '/{instrument}/align/'
+    # fetch the data
+    path = path_to_HMI + '/data/{instrument}/align/'
 
     Fido.fetch(hmi_results[0], path=path)
 
@@ -514,8 +514,27 @@ def run(path_to_slits,
 
     print('Fido successfully downloaded HMI data.')
 
-    parameters = [26, 31, 0.983, 0.99, 0]
+    print(20*'-')
+    print('Performing Initial Rough Alignment')
+
+    p0 = [27, 31, 1, 1, 0]
+    closest_index0 = N_slits * [1]
     bounds = [(-40, 40), (-40, 40), (0.9, 1.1), (0.9, 1.1), (0, 0)]
+
+    converged, parameters = minimize(p0,
+                                     slits_sorted,
+                                     path_to_slits,
+                                     all_HMI_data,
+                                     hmix,
+                                     hmiy,
+                                     hinode_B,
+                                     closest_index0,
+                                     bounds)
+
+    print('Initial Rough Alignment Complete.')
+    print('Estimate of parameters: ' + str(parameters))
+    print(20*'-')
+    print('Performing Final Fit')
 
     converged, parameters = minimize(parameters,
                                      slits_sorted,
@@ -527,6 +546,7 @@ def run(path_to_slits,
                                      closest_index,
                                      bounds)
     print('Minimized: ' + str(converged))
+    print('Final Parameters: ' + str(parameters))
 
     if not converged:
         raise Exception('Failed to Solve. Exiting.')
