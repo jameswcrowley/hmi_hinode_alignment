@@ -486,6 +486,8 @@ def minimize(initial_guess,
 def run(path_to_slits,
         hinode_B,
         path_to_sunpy,
+        output_format,
+        plot = True,
         bounds=None):
     """
     Run:
@@ -494,6 +496,16 @@ def run(path_to_slits,
     :param path_to_slits:
 
     :param hinode_B:
+
+    :param plot:
+        bool, whether or not to plot the output image. defualt is true.
+
+    :param output_format:
+        List of strings, the format to save the output in. Accepted inputs are "HPCx", "HPCy", "hinodeB". If you
+        don't want to save anything and just want to visualize, pass in an empty list == [].
+        TODO: right now, this just saves [HPCx, HPCy], and optionally hinodeB.
+
+        TODO: add some more possible outputs. obstime, azimuth, other possible things.
 
     :param bounds:
 
@@ -551,20 +563,59 @@ def run(path_to_slits,
     if not converged:
         raise Exception('Failed to Solve. Exiting.')
 
-    # after converged, vizualize it:
-    final_HMI = assemble_and_compare_interpolated_HMI(parameters,
-                                                      slits_sorted,
-                                                      path_to_slits,
-                                                      all_HMI_data,
-                                                      hmix,
-                                                      hmiy,
-                                                      hinode_B,
-                                                      closest_index,
-                                                      False)
+    if plot:
+        # after converged, vizualize it:
+        final_HMI = assemble_and_compare_interpolated_HMI(parameters,
+                                                          slits_sorted,
+                                                          path_to_slits,
+                                                          all_HMI_data,
+                                                          hmix,
+                                                          hmiy,
+                                                          hinode_B,
+                                                          closest_index,
+                                                          False)
 
-    plot_and_viz_compare(hinode_B, final_HMI, parameters)
+        plot_and_viz_compare(hinode_B, final_HMI, parameters)
 
     all_HMI_files = os.listdir(path_to_sunpy + '/data/HMI/align/')
 
+    # remove the HMI maps
     for file in all_HMI_files:
         os.remove(path_to_sunpy + '/data/HMI/align/' + file)
+
+    # save the coordinate, and any other requested information
+    if len(output_format) == 0:
+        pass
+    else:
+        # if saving, create the final coordinate arrays.
+
+        dx = (parameters[0]) * u.arcsec
+        dy = (parameters[1]) * u.arcsec
+
+        deltax = parameters[2]
+        deltay = parameters[3]
+
+        theta = parameters[4]
+
+        final_coordinates = get_coordinates(slits=slits, path_to_slits=path_to_slits, theta=theta)
+
+        finalx = final_coordinates[:, 1, :]
+        finaly = final_coordinates[:, 0, :]
+
+        finalx = finalx * deltax - (1 - deltax) * finalx[0, 0] + dx.value
+        finaly = finaly * deltay - (1 - deltay) * finaly[0, 0] + dy.value
+
+        num_indices = len(output_format)
+
+        Nx = hinode_B.shape[0]
+        Ny = hinode_B.shape[0]
+
+        output = np.zeros((Nx, Ny, num_indices))
+
+        output[:, :, 0] = finalx
+        output[:, :, 1] = finaly
+
+        if num_indices == 3:
+            output[:, :, 2] = hinode_B
+
+        fits.writeto('coordinates.fits', output, overwrite=True)

@@ -1,12 +1,12 @@
 # HMI / Hinode Co-alignment
-A code for determining the helio-projective (HP) coordinates of Hinode magnetograms using co-temporal HMI magnetograms.
+A code for determining the helio-projective cartesian (HPC) coordinates of Hinode magnetograms using co-temporal HMI magnetograms.
 
 ![Alt text](alignment.png)
 
 
 ---
 ## General Overview
-We upscale HMI data to Hinode's resolution by interpolating HMI onto an irregular grid of HP coordinates, and cross-correlating the interpolated HMI magnetograms with the Hinode observations. 
+We upscale HMI data to Hinode's resolution by interpolating HMI onto an irregular grid of HPC coordinates, and cross-correlating the interpolated HMI magnetograms with the Hinode observations. 
 
 Although other codes exist for this problem, we were interested in writing one with a few differences in mind:
 
@@ -23,8 +23,8 @@ Although other codes exist for this problem, we were interested in writing one w
      4. $\delta_x$: a multiplier offset to correct for the spacing of x-coordinates   
      5. $\delta_y$: a multiplier offset to correct for the spacing of y-coordinates (here, we're assuming the spacing in x and y are constant, but may be the wrong spacing from the Hinode header)
 
-#### An Example Run of the Code: 
+#### An Example Run of the Code, which will plot the final alignment and save the final coordinates: 
 
-    python interpolate.py --path_to_slits '/Users/jamescrowley/Documents/Fall_2023/research/LWS/raster1_slits/' --name_hinode_B '/Users/jamescrowley/Documents/Fall_2023/research/LWS/inv_res_mod_raster1.fits' --path_to_sunpy '/Users/jamescrowley/sunpy/'
+    python interpolate.py --plot True --path_to_slits '/Users/jamescrowley/Documents/Fall_2023/research/LWS/raster1_slits/' --name_hinode_B '/Users/jamescrowley/Documents/Fall_2023/research/LWS/inv_res_mod_raster1.fits' --path_to_sunpy '/Users/jamescrowley/sunpy/' --output_format '["HPCx", "HPCy"]'
 
 A work-in-progress. Contact: james.crowley (at) colorado.edu
