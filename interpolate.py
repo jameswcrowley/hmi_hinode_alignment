@@ -24,6 +24,12 @@ def main():
                         type=str,
                         required=True,
                         help='path to sunpy. On my computer it is /Users/jamescrowley/sunpy/')
+    parser.add_argument('--output_format',
+                        dest='output_format',
+                        type=list,
+                        required=True,
+                        help='output format to save the coords. if only vizualizing, use []. otherwise, accepted'
+                             'arguments are "HPCx", "HPCy", "hinodeB"')
 
     arg = parser.parse_args()
 
@@ -31,6 +37,7 @@ def main():
     path_to_slits = arg.path_to_slits
     name_hinode_B = arg.name_hinode_B
     path_to_sunpy = arg.path_to_sunpy
+    output_format = arg.output_format
 
     hinode_model = du.fits.open(name_hinode_B)[0].data
     hinode_B = hinode_model[4, 10] * du.np.cos(hinode_model[6, 10] * du.np.pi / 180)
@@ -39,7 +46,9 @@ def main():
     du.run(path_to_slits,
            hinode_B,
            bounds=[(25, 35), (15, 25), (0.9, 1.1), (0.9, 1.1), (-2, 2)],
-           path_to_sunpy = path_to_sunpy)
+           path_to_sunpy=path_to_sunpy,
+           output_format=output_format,
+           plot=plot)
 
 
 if __name__ == '__main__':
