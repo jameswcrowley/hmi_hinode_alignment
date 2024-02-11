@@ -156,8 +156,8 @@ def interpolate_section(parameters,
     coordinates = get_coordinates(slits_subset, path_to_slits, theta)
 
     # unpacking coordinates into x and y arrays
-    hinodex = coordinates[:, 1, :] * u.arcsec
-    hinodey = coordinates[:, 0, :] * u.arcsec
+    hinodex = coordinates[:, 0, :] * u.arcsec
+    hinodey = coordinates[:, 1, :] * u.arcsec
 
     hinodex = hinodex * deltax - (1 - deltax) * hinodex[0, 0]
     hinodey = hinodey * deltay - (1 - deltay) * hinodey[0, 0]
@@ -189,7 +189,7 @@ def interpolate_section(parameters,
 
     # interpolating this square HMI data ONTO the irregular Hinode coordinates
 
-    interpolated_HMI_B = f(hinodey, hinodex, grid=False)[:, ::-1]
+    interpolated_HMI_B = f(hinodey, hinodex, grid=False)
     return interpolated_HMI_B
 
 
@@ -365,15 +365,15 @@ def assemble_and_compare_interpolated_HMI(parameters,
         if slit_indices.size == 0:
             pass
         else:  # there are HMI maps corresponding to these slits
-            index1 = slit_indices[0]  # pad it by a row on either side
-            index2 = slit_indices[-1] + 1
-            interpolated_HMI[index1:index2, :][::-1, ::-1] = interpolate_section(parameters,
+            index1 = slit_indices[0]
+            index2 = slit_indices[-1] + 1  # pad it by a row, this makes it the right size
+            interpolated_HMI[:, index1:index2][::-1, ::-1] = interpolate_section(parameters,
                                                                                  slits_sorted,
                                                                                  all_HMI_data[:, :, i],
                                                                                  hmix,
                                                                                  hmiy,
                                                                                  path_to_slits,
-                                                                                 (index1, index2))
+                                                                                 (index1, index2)).T
 
     if flag:
         S0 = np.zeros_like(hinode_B)
@@ -415,7 +415,7 @@ def plot_and_viz_compare(hinode_B,
 
     plt.subplot(1, 2, 2)
     plt.title('HMI Interpolated Data, shifted (' + str(dx) + ', ' + str(dy) + ') arcsec')
-    plt.imshow(HMI_B[::-1, ::-1], vmin=-100, vmax=100, cmap='PuOr')
+    plt.imshow(HMI_B[::-1], vmin=-100, vmax=100, cmap='PuOr')
     plt.colorbar()
 
     plt.show()
@@ -529,7 +529,7 @@ def run(path_to_slits,
     print(20*'-')
     print('Performing Initial Rough Alignment')
 
-    p0 = [27, 31, 1, 1, 0]
+    p0 = [25, 25, 1, 1, 0]
     closest_index0 = N_slits * [1]
     bounds = [(-40, 40), (-40, 40), (0.9, 1.1), (0.9, 1.1), (0, 0)]
 
