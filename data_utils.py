@@ -15,7 +15,12 @@ from scipy.optimize import minimize as scipy_minimize
 from scipy.ndimage import gaussian_filter as gf
 
 
-def get_coordinates(slits, path_to_slits, theta=0):
+def get_coordinates(slits,
+                    i,
+                    deltax,
+                    deltay,
+                    path_to_slits,
+                    theta=0):
     """
     Get Coordinates
         Returns the HPC coordinates of a set of slits passed in
@@ -40,7 +45,7 @@ def get_coordinates(slits, path_to_slits, theta=0):
     coordinates_counter = 0
     coordinates = np.zeros((1, 2, 192))
 
-    for slit in slits:
+    for j, slit in enumerate(slits):
         temp_header = fits.open(path_to_slits + slit)[0].header
 
         temp_xcens = temp_header['XCEN']
@@ -50,7 +55,17 @@ def get_coordinates(slits, path_to_slits, theta=0):
 
         temp_p1 = temp_header['CROTA1']
 
-        temp_coordinates = get_slit_coords(temp_xcens, temp_ycens, temp_xdelt, temp_ydelt, temp_p1, theta)
+        index = i + j
+
+        temp_coordinates = get_slit_coords(index,
+                                           temp_xcens,
+                                           temp_ycens,
+                                           temp_xdelt,
+                                           temp_ydelt,
+                                           deltax,
+                                           deltay,
+                                           temp_p1,
+                                           theta)
 
         if coordinates_counter == 0:
             coordinates[0] = temp_coordinates
@@ -62,10 +77,13 @@ def get_coordinates(slits, path_to_slits, theta=0):
     return coordinates
 
 
-def get_slit_coords(xcen,
+def get_slit_coords(index,
+                    xcen,
                     ycen,
-                    xdelt,
-                    ydelt,
+                    px,
+                    py,
+                    deltax,
+                    deltay,
                     p1,
                     theta=0):
     """
@@ -74,6 +92,9 @@ def get_slit_coords(xcen,
 
 
 
+    :param index:
+        a int, the index of the slit along the raster.
+        Used for stretching the raster horizontally by the x-coordinate of each slit by xdelt * index
     :param xcen:
         a float, total offset of the center of the dataset by x arcsec
     :param ycen:
@@ -93,8 +114,8 @@ def get_slit_coords(xcen,
     y_slit_indices = np.arange(-96, 96, 1)
     x_slit_indices = np.ones(192) * 0.5
 
-    slit_coordinates_x = x_slit_indices * xdelt + xcen
-    slit_coordinates_y = y_slit_indices * ydelt + ycen
+    slit_coordinates_x = x_slit_indices * px + xcen
+    slit_coordinates_y = y_slit_indices * (py + deltay) + ycen
 
     p = p1 + theta
 
@@ -103,6 +124,7 @@ def get_slit_coords(xcen,
     slit_coordinates[0, 0] = slit_coordinates_x * np.cos(p * np.pi / 180) - slit_coordinates_y * np.sin(p * np.pi / 180)
     slit_coordinates[0, 1] = slit_coordinates_x * np.sin(p * np.pi / 180) + slit_coordinates_y * np.cos(p * np.pi / 180)
 
+    slit_coordinates[0, 0] = slit_coordinates[0, 0] + index * deltax
     return slit_coordinates
 
 
@@ -153,14 +175,16 @@ def interpolate_section(parameters,
 
     slits_subset = slits_sorted[slit_indices[0]:slit_indices[-1]]
 
-    coordinates = get_coordinates(slits_subset, path_to_slits, theta)
+    coordinates = get_coordinates(slits_subset,
+                                  slit_indices[0],
+                                  deltax,
+                                  deltay,
+                                  path_to_slits,
+                                  theta)
 
     # unpacking coordinates into x and y arrays
     hinodex = coordinates[:, 0, :] * u.arcsec
     hinodey = coordinates[:, 1, :] * u.arcsec
-
-    hinodex = hinodex * deltax - (1 - deltax) * hinodex[0, 0]
-    hinodey = hinodey * deltay - (1 - deltay) * hinodey[0, 0]
 
     # pulling "best guess" corners of square HMI, size of Hinode raster, to define as low (original resolution) HMI data
     corner1_arcsec = (hinodex[0, 0] + dx, hinodey[0, 0] + dy)
@@ -174,7 +198,7 @@ def interpolate_section(parameters,
     hmi_corner2_y_index = np.argmin(abs(corner2_arcsec[1] - hmiy[:, 0]))
 
     # expanding HMI box to avoid edge effects:
-    delta = 10
+    delta = 30
 
     # pulling a regular, rectangular grid covering the HINODE raster from the corners above:
     hmi_x_coords = hmiy[hmi_corner2_x_index - delta:hmi_corner1_x_index + delta, hmi_corner2_y_index][
@@ -487,7 +511,7 @@ def run(path_to_slits,
         hinode_B,
         path_to_sunpy,
         output_format,
-        plot = True,
+        plot=True,
         bounds=None):
     """
     Run:
@@ -526,10 +550,10 @@ def run(path_to_slits,
 
     print('Fido successfully downloaded HMI data.')
 
-    print(50*'-')
+    print(50 * '-')
     print('Performing Initial Rough Alignment')
 
-    p0 = [20, 20, 1, 1, 0]
+    p0 = [1.64161330e+01, 3.20211896e+01, -8.51689521e-03, 3.71937079e-04, 2.49270459e+00]
     closest_index0 = N_slits * [1]
     bounds = [(-40, 40), (-40, 40), (0.9, 1.1), (0.9, 1.1), (0, 0)]
 
@@ -545,7 +569,7 @@ def run(path_to_slits,
 
     print('Initial Rough Alignment Complete.')
     print('Estimate of parameters: ' + str(parameters))
-    print(50*'-')
+    print(50 * '-')
     print('Performing Final Fit')
 
     converged, parameters = minimize(parameters,
@@ -566,7 +590,7 @@ def run(path_to_slits,
 
     if plot:
         # after converged, vizualize it:
-        print(50*'-')
+        print(50 * '-')
         print('Vizualizing Final Solution:')
         final_HMI = assemble_and_compare_interpolated_HMI(parameters,
                                                           slits_sorted,
@@ -600,7 +624,12 @@ def run(path_to_slits,
 
         theta = parameters[4]
 
-        final_coordinates = get_coordinates(slits=slits, path_to_slits=path_to_slits, theta=theta)
+        final_coordinates = get_coordinates(slits=slits,
+                                            i=0,
+                                            deltax=deltax,
+                                            deltay=deltay,
+                                            path_to_slits=path_to_slits,
+                                            theta=theta)
 
         finalx = final_coordinates[:, 1, :]
         finaly = final_coordinates[:, 0, :]
