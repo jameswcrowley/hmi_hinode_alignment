@@ -1,7 +1,7 @@
 # HMI / Hinode Co-alignment
 A code for determining the helio-projective cartesian (HPC) coordinates of Hinode magnetograms using co-temporal HMI magnetograms.
 
-![Alt text](alignment.png)
+![Alt text](alignment.gif)
 
 
 ---

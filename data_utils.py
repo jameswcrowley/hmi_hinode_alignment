@@ -458,19 +458,25 @@ def minimize(initial_guess,
     Minimize:
         a function which uses scipy's minimize to find the parameter set which best aligns the data
 
-
-
     :param initial_guess:
         a list of initial guess set of 5 parameters to start the minimizer at
     :param slits_sorted:
+        a list of strings, the alphabetically (and therefore temporally) sorted fits slits in the path_to_slits folder
     :param path_to_slits:
+        a string, path to the folder where the unpacked CSAC slits are saved.
     :param all_HMI_data:
+        The stacked numpy of all co-temporal hmi signed magnetic field data.
+        Shape should be (4096, 4096, t), where t is the number of co-temporal datasets.
     :param hmix:
+        (4096 x 4096) array of hmix coordinates, the same for every hmi 45s map.
     :param hmiy:
+        (4096 x 4096) array of hmiy coordinates, the same for every hmi 45s map.
     :param hinode_B:
+        a numpy array of signed hinode magnetic field to be aligned. Should be (Nx, Ny) in shape.
     :param closest_index:
+        a list of ints, the index of the closest hmi co-temporal map to each slit. i.e. a list of N_slits ints.
     :param bounds:
-        optional, a list of touples, used to bound the
+        a list of touples, used to bound the parameter search
 
     :return flag:
         a bool, if scipy's minimizer convereged
@@ -515,11 +521,16 @@ def run(path_to_slits,
         bounds=None):
     """
     Run:
-        I want this to be the funciton which calls all the others to run the sequence, almost like a main
+        I want this to be the funciton which calls all the others to run the alignment, almost like a main
 
     :param path_to_slits:
+        a string, path to the folder where the unpacked CSAC slits are saved.
 
     :param hinode_B:
+        a numpy array of signed hinode magnetic field to be aligned. Should be (Nx, Ny) in shape.
+
+    :param path_to_sunpy:
+        a string, path to where sunpy data is to be saved.
 
     :param plot:
         bool, whether or not to plot the output image. defualt is true.
@@ -532,6 +543,8 @@ def run(path_to_slits,
         TODO: add some more possible outputs. obstime, azimuth, other possible things.
 
     :param bounds:
+        a list of floats, initial bounds around which to search for parameters. Defualts to none and use wide bounds.
+        Update if you want to use tighter bounds in parameter search.
 
 
 
@@ -555,7 +568,10 @@ def run(path_to_slits,
 
     p0 = [1.64161330e+01, 3.20211896e+01, -8.51689521e-03, 3.71937079e-04, 2.49270459e+00]
     closest_index0 = N_slits * [1]
-    bounds = [(-40, 40), (-40, 40), (0.9, 1.1), (0.9, 1.1), (0, 0)]
+    if bounds is None:
+        bounds = [(-40, 40), (-40, 40), (0.9, 1.1), (0.9, 1.1), (0, 0)]
+    else:
+        bounds = bounds
 
     converged, parameters = minimize(p0,
                                      slits_sorted,
