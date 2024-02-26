@@ -377,12 +377,12 @@ def assemble_and_compare_interpolated_HMI(parameters,
 
     if flag:
         S0 = np.zeros_like(hinode_B)
-        S0[abs(hinode_B) > 100] = 1
+        S0[abs(hinode_B) > 80] = 1
 
-        S1 = gf(S0, sigma=1.5)
+        S1 = gf(S0, sigma=0.7)
 
         S2 = np.zeros_like(S1)
-        S2[S1 > 0.2] = 1
+        S2[S1 > 0.7] = 1
 
         Q = np.sum(abs(interpolated_HMI) * S2)
 
@@ -526,10 +526,10 @@ def run(path_to_slits,
 
     print('Fido successfully downloaded HMI data.')
 
-    print(20*'-')
+    print(50*'-')
     print('Performing Initial Rough Alignment')
 
-    p0 = [25, 25, 1, 1, 0]
+    p0 = [20, 20, 1, 1, 0]
     closest_index0 = N_slits * [1]
     bounds = [(-40, 40), (-40, 40), (0.9, 1.1), (0.9, 1.1), (0, 0)]
 
@@ -545,7 +545,7 @@ def run(path_to_slits,
 
     print('Initial Rough Alignment Complete.')
     print('Estimate of parameters: ' + str(parameters))
-    print(20*'-')
+    print(50*'-')
     print('Performing Final Fit')
 
     converged, parameters = minimize(parameters,
@@ -557,6 +557,7 @@ def run(path_to_slits,
                                      hinode_B,
                                      closest_index,
                                      bounds)
+
     print('Minimized: ' + str(converged))
     print('Final Parameters: ' + str(parameters))
 
@@ -565,6 +566,8 @@ def run(path_to_slits,
 
     if plot:
         # after converged, vizualize it:
+        print(50*'-')
+        print('Vizualizing Final Solution:')
         final_HMI = assemble_and_compare_interpolated_HMI(parameters,
                                                           slits_sorted,
                                                           path_to_slits,
