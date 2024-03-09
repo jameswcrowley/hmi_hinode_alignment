@@ -391,14 +391,23 @@ def assemble_and_compare_interpolated_HMI(parameters,
         else:  # there are HMI maps corresponding to these slits
             index1 = slit_indices[0]
             index2 = slit_indices[-1] + 1  # pad it by a row, this makes it the right size
-            interpolated_HMI[:, index1:index2][::-1, ::-1] = interpolate_section(parameters,
-                                                                                 slits_sorted,
-                                                                                 all_HMI_data[:, :, i],
-                                                                                 hmix,
-                                                                                 hmiy,
-                                                                                 path_to_slits,
-                                                                                 (index1, index2)).T
-
+            try:
+                interpolated_HMI[:, index1:index2][::-1, ::-1] = interpolate_section(parameters,
+                                                                                     slits_sorted,
+                                                                                     all_HMI_data[:, :, i],
+                                                                                     hmix,
+                                                                                     hmiy,
+                                                                                     path_to_slits,
+                                                                                     (index1, index2)).T
+            except:
+                index2 -= 1
+                interpolated_HMI[:, index1:index2][::-1, ::-1] = interpolate_section(parameters,
+                                                                                     slits_sorted,
+                                                                                     all_HMI_data[:, :, i],
+                                                                                     hmix,
+                                                                                     hmiy,
+                                                                                     path_to_slits,
+                                                                                     (index1, index2)).T
     if flag:
         S0 = np.zeros_like(hinode_B)
         S0[abs(hinode_B) > 80] = 1
@@ -647,11 +656,11 @@ def run(path_to_slits,
                                             path_to_slits=path_to_slits,
                                             theta=theta)
 
-        finalx = final_coordinates[:, 1, :]
-        finaly = final_coordinates[:, 0, :]
+        finalx = final_coordinates[:, 0, :]
+        finaly = final_coordinates[:, 1, :]
 
-        finalx = finalx * deltax - (1 - deltax) * finalx[0, 0] + dx.value
-        finaly = finaly * deltay - (1 - deltay) * finaly[0, 0] + dy.value
+        finalx = (finalx * (1 - deltax)) + dx.value
+        finaly = (finaly * (1 - deltay)) + dy.value
 
         num_indices = len(output_format)
 
