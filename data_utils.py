@@ -14,6 +14,9 @@ import scipy.interpolate as interpolate
 from scipy.optimize import minimize as scipy_minimize
 from scipy.ndimage import gaussian_filter as gf
 
+import matplotlib.animation as animation
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
 
 def get_coordinates(slits,
                     i,
@@ -439,18 +442,30 @@ def plot_and_viz_compare(hinode_B,
     dx = parameters[0]
     dy = parameters[1]
 
-    plt.figure(figsize=[15, 5])
+    fps = 30
 
-    plt.subplot(1, 2, 1)
-    plt.title('OUR Inverted Hinode Dataset')
-    plt.imshow(hinode_B[::-1], vmin=-100, vmax=100, cmap='PuOr')
-    plt.colorbar()
+    # First set up the figure, the axis, and the plot element we want to animate
+    fig = plt.figure(figsize=(8, 8))
 
-    plt.subplot(1, 2, 2)
-    plt.title('HMI Interpolated Data, shifted (' + str(dx) + ', ' + str(dy) + ') arcsec')
-    plt.imshow(HMI_B[::-1], vmin=-100, vmax=100, cmap='PuOr')
-    plt.colorbar()
+    # stacking the data on-top:
+    B_data = [hinode_B[::-1, :][:-3], HMI_B[::-1, :][:-3], hinode_B[::-1, :][:-3]] * 100
 
+    ax = plt.subplot()
+    im = ax.imshow(B_data[0], cmap='PuOr', vmin=-60, vmax=60)
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    plt.colorbar(im, cax=cax)
+
+    def animate_func(i):
+        if i % fps == 0:
+            print('.', end='')
+
+        im.set_array(B_data[i])
+
+    anim = animation.FuncAnimation(fig,
+                                   animate_func,
+                                   frames=len(B_data),
+                                   interval=15000 / fps)  # in ms
     plt.show()
 
 
