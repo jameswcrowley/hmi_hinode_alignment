@@ -44,7 +44,6 @@ def get_coordinates(slits,
         a numpy array, of shape (N_slits, 2, 192). HPC coordinates of each coordinate,
         (N_slits, x/y, position along slit)
     """
-
     coordinates_counter = 0
     coordinates = np.zeros((1, 2, 192))
 
@@ -591,7 +590,7 @@ def run(path_to_slits,
     print(50 * '-')
     print('Performing Initial Rough Alignment')
 
-    p0 = [1.64161330e+01, 3.20211896e+01, -8.51689521e-03, 3.71937079e-04, 2.5]
+    p0 = [1.64161330e+01, 3.20211896e+01, -8.51689521e-03, 3.71937079e-04, 3]
     closest_index0 = N_slits * [1]
     print(bounds)
     if bounds is None:
