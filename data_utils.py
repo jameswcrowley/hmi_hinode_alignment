@@ -44,7 +44,6 @@ def get_coordinates(slits,
         a numpy array, of shape (N_slits, 2, 192). HPC coordinates of each coordinate,
         (N_slits, x/y, position along slit)
     """
-
     coordinates_counter = 0
     coordinates = np.zeros((1, 2, 192))
 
@@ -332,7 +331,7 @@ def read_in_HMI(path_to_HMI='/Users/jamescrowley/sunpy/'):
             all_HMI_data = np.concatenate((all_HMI_data, temp_data), axis=2)
         else:
             pass
-
+    print(all_HMI_data.shape)
     return all_HMI_data, hmix, hmiy
 
 
@@ -382,7 +381,7 @@ def assemble_and_compare_interpolated_HMI(parameters,
     """
 
     N_slits = len(closest_index)
-    interpolated_HMI = np.zeros((N_slits, 192))
+    interpolated_HMI = np.zeros((192, 192))
 
     last_HMI_index = closest_index[-1]
 
@@ -507,6 +506,7 @@ def minimize(initial_guess,
     :return parameters:
         if converged, return best fit paramters
     """
+    print(bounds)
 
     if bounds is not None:
         x = scipy_minimize(assemble_and_compare_interpolated_HMI,
@@ -541,7 +541,7 @@ def run(path_to_slits,
         hinode_B,
         path_to_sunpy,
         output_format,
-        plot=True,
+        plot=False,
         bounds=None):
     """
     Run:
@@ -557,7 +557,7 @@ def run(path_to_slits,
         a string, path to where sunpy data is to be saved.
 
     :param plot:
-        bool, whether or not to plot the output image. defualt is true.
+        bool, whether or not to plot the output image. default is true.
 
     :param output_format:
         List of strings, the format to save the output in. Accepted inputs are "HPCx", "HPCy", "hinodeB". If you
@@ -590,10 +590,11 @@ def run(path_to_slits,
     print(50 * '-')
     print('Performing Initial Rough Alignment')
 
-    p0 = [1.64161330e+01, 3.20211896e+01, -8.51689521e-03, 3.71937079e-04, 2.49270459e+00]
+    p0 = [1.64161330e+01, 3.20211896e+01, -8.51689521e-03, 3.71937079e-04, 3]
     closest_index0 = N_slits * [1]
+    print(bounds)
     if bounds is None:
-        bounds = [(-40, 40), (-40, 40), (0.9, 1.1), (0.9, 1.1), (0, 0)]
+        bounds = [(-40, 40), (-40, 40), (0.9, 1.1), (0.9, 1.1), (2, 4)]
     else:
         bounds = bounds
 
@@ -680,14 +681,15 @@ def run(path_to_slits,
         num_indices = len(output_format)
 
         Nx = hinode_B.shape[0]
-        Ny = hinode_B.shape[0]
+        Ny = hinode_B.shape[1]
 
-        output = np.zeros((Nx, Ny, num_indices))
+        output = np.zeros((finalx.shape[0], finalx.shape[1], 2)) #TODO: change this to be correct
 
-        output[:, :, 0] = finalx
-        output[:, :, 1] = finaly
+        output[:Nx, :Ny, 0] = finalx[:Nx, :Ny]
+        output[:Nx, :Ny, 1] = finaly[:Nx, :Ny]
 
-        if num_indices == 3:
-            output[:, :, 2] = hinode_B
+        #if num_indices == 3:
+            #output[:, :, 2] = hinode_B
 
         fits.writeto('coordinates.fits', output, overwrite=True)
+        fits.writeto('parameters.fits', parameters, overwrite=True)

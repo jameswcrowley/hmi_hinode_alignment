@@ -33,19 +33,19 @@ def main():
 
     arg = parser.parse_args()
 
-    plot = arg.plot
+    plot = arg.plot  # TODO: plot option not working... figure out why and fix this.
     path_to_slits = arg.path_to_slits
     name_hinode_B = arg.name_hinode_B
     path_to_sunpy = arg.path_to_sunpy
     output_format = arg.output_format
 
     hinode_model = du.fits.open(name_hinode_B)[0].data
-    hinode_B = hinode_model[4, 10] * du.np.cos(hinode_model[6, 10] * du.np.pi / 180)
+    hinode_B = hinode_model
 
     # --- interpolating ---
     du.run(path_to_slits,
            hinode_B,
-           bounds=[(25, 35), (15, 25), (0.9, 1.1), (0.9, 1.1), (-2, 2)],
+           bounds=None,
            path_to_sunpy=path_to_sunpy,
            output_format=output_format,
            plot=plot)
