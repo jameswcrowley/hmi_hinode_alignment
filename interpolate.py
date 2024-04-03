@@ -3,11 +3,19 @@ import argparse
 
 
 def main():
+
+    def str2bool(v):
+        if v.lower() in ('yes', 'true', 't', 'y', '1'):
+            return True
+        elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+            return False
+        else:
+            raise argparse.ArgumentTypeError('Boolean value expected.')
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--plot',
                         dest='plot',
-                        type=bool,
-                        required=False,
+                        type=str2bool,
                         help='whether or not to plot and visually compare result.')
     parser.add_argument('--path_to_slits',
                         dest='path_to_slits',
@@ -24,20 +32,34 @@ def main():
                         type=str,
                         required=True,
                         help='path to sunpy. On my computer it is /Users/jamescrowley/sunpy/')
-    parser.add_argument('--output_format',
-                        dest='output_format',
-                        type=list,
-                        required=True,
-                        help='output format to save the coords. if only vizualizing, use []. otherwise, accepted'
-                             'arguments are "HPCx", "HPCy", "hinodeB"')
+    parser.add_argument('--save_coords',
+                        dest='save_coords',
+                        type=str2bool,
+                        help='Whether or not to save the final coordinates, in HPC x/y.')
+
+    parser.add_argument('--save_params',
+                        dest='save_params',
+                        type=str2bool,
+                        help='Whether or not to save the final fitted parameters, in the order '
+                             '[x_cen, y_cen, p_x, p_y, theta].')
+    parser.add_argument('--verbose',
+                        dest='verbose',
+                        type=str2bool,
+                        help='If you want code to print updates. Default = True')
+
 
     arg = parser.parse_args()
 
-    plot = arg.plot  # TODO: plot option not working... figure out why and fix this.
+    plot = arg.plot
     path_to_slits = arg.path_to_slits
     name_hinode_B = arg.name_hinode_B
     path_to_sunpy = arg.path_to_sunpy
-    output_format = arg.output_format
+    save_coords = arg.save_coords
+    save_params = arg.save_params
+    verbose = arg.verbose
+
+    if verbose is None:
+        verbose = True
 
     hinode_model = du.fits.open(name_hinode_B)[0].data
     hinode_B = hinode_model
@@ -47,9 +69,10 @@ def main():
            hinode_B,
            bounds=None,
            path_to_sunpy=path_to_sunpy,
-           output_format=output_format,
-           plot=plot)
-
+           plot=plot,
+           save_coords=save_coords,
+           save_params=save_params,
+           verbose=verbose)
 
 if __name__ == '__main__':
     main()

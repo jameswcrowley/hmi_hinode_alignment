@@ -25,6 +25,6 @@ Although other codes exist for this problem, we were interested in writing one w
 
 #### An Example Run of the Code, which will plot the final alignment and save the final coordinates: 
 
-    python interpolate.py --plot True --path_to_slits '/Users/jamescrowley/Documents/Fall_2023/research/LWS/raster1_slits/' --name_hinode_B '/Users/jamescrowley/Documents/Fall_2023/research/LWS/inv_res_mod_raster1.fits' --path_to_sunpy '/Users/jamescrowley/sunpy/' --output_format '["HPCx", "HPCy"]'
+    python /Users/jamescrowley/Documents/spring_2024/research/hmi_hinode_alignment/interpolate.py --plot True --path_to_slits /Users/jamescrowley/Documents/spring_2024/research/LWS/raster0/ --name_hinode_B /Users/jamescrowley/Documents/spring_2024/research/LWS/B/B/B01 --path_to_sunpy /Users/jamescrowley/sunpy/ --save_coords False --save_params False
 
 A work-in-progress. Contact: james.crowley (at) colorado.edu
