@@ -23,6 +23,7 @@ def get_coordinates(slits,
                     deltax,
                     deltay,
                     path_to_slits,
+                    sizey,
                     theta=0):
     """
     Get Coordinates
@@ -41,11 +42,11 @@ def get_coordinates(slits,
         which is why it's passed in here. The other are corrected for later... might change this
 
     :return coordinates:
-        a numpy array, of shape (N_slits, 2, 192). HPC coordinates of each coordinate,
+        a numpy array, of shape (N_slits, 2, sizey). HPC coordinates of each coordinate,
         (N_slits, x/y, position along slit)
     """
     coordinates_counter = 0
-    coordinates = np.zeros((1, 2, 192))
+    coordinates = np.zeros((1, 2, sizey))
 
     for j, slit in enumerate(slits):
         temp_header = fits.open(path_to_slits + slit)[0].header
@@ -136,6 +137,7 @@ def interpolate_section(parameters,
                         hmix,
                         hmiy,
                         path_to_slits,
+                        sizes,
                         slit_indices=(0, 192)):
     """
     Interpolate:
@@ -161,6 +163,8 @@ def interpolate_section(parameters,
         a string, the absolute path to the folder where the Hinode fits slits are stored
     :param slit_indices:
 
+    :param sizes:
+
     :return: interpolated_HMI_B
         an array of the same size as the slits subset passed in. HMI magnetic data interpolated onto the Hinode
         grid from the Hinode header, offset by the input parameters.
@@ -182,6 +186,7 @@ def interpolate_section(parameters,
                                   deltax,
                                   deltay,
                                   path_to_slits,
+                                  sizes[1],
                                   theta)
 
     # unpacking coordinates into x and y arrays
@@ -403,6 +408,7 @@ def assemble_and_compare_interpolated_HMI(parameters,
                                                                                      hmix,
                                                                                      hmiy,
                                                                                      path_to_slits,
+                                                                                     sizes,
                                                                                      (index1, index2)).T
             except:
                 index2 -= 1
@@ -412,6 +418,7 @@ def assemble_and_compare_interpolated_HMI(parameters,
                                                                                      hmix,
                                                                                      hmiy,
                                                                                      path_to_slits,
+                                                                                     sizes,
                                                                                      (index1, index2)).T
     if flag:
         S0 = np.zeros_like(hinode_B)
@@ -431,8 +438,7 @@ def assemble_and_compare_interpolated_HMI(parameters,
 
 
 def plot_and_viz_compare(hinode_B,
-                         HMI_B,
-                         parameters):
+                         HMI_B):
     """
     Plot and visually compare:
         plot the interpolated HMI dataset vs. the inverted Hinode dataset, show the image.
@@ -441,8 +447,6 @@ def plot_and_viz_compare(hinode_B,
 
     :return: None
     """
-    dx = parameters[0]
-    dy = parameters[1]
 
     fps = 30
 
@@ -669,7 +673,7 @@ def run(path_to_slits,
                                                           sizes,
                                                           False)
 
-        plot_and_viz_compare(hinode_B, final_HMI, parameters)
+        plot_and_viz_compare(hinode_B, final_HMI)
 
     all_HMI_files = os.listdir(path_to_sunpy + '/data/HMI/align/')
 
@@ -693,6 +697,7 @@ def run(path_to_slits,
                                             deltax=deltax,
                                             deltay=deltay,
                                             path_to_slits=path_to_slits,
+                                            sizey=sizey,
                                             theta=theta)
 
         finalx = final_coordinates[:, 0, :]
@@ -714,7 +719,8 @@ def run(path_to_slits,
         fits.writeto('parameters.fits', parameters, overwrite=True)
 
 
-def create_psuedo_B(N_slits, slits_sorted):
+def create_psuedo_B(sizes,
+                    slits_sorted):
     """
     Creating a psuedo-B from a sum over signed circular polarization of second 6302 wing
 
@@ -722,7 +728,7 @@ def create_psuedo_B(N_slits, slits_sorted):
     :return:
     """
 
-    psuedo_B = np.zeros((192, N_slits))
+    psuedo_B = np.zeros((sizes[0], sizes[1]))
 
     for i, slit in enumerate(slits_sorted):
         slit_temp = fits.open('./raster1_slits/' + slit)[0].data
