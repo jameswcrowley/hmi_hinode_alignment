@@ -17,11 +17,13 @@ from scipy.ndimage import gaussian_filter as gf
 import matplotlib.animation as animation
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+
 def get_coordinates(slits,
                     i,
                     deltax,
                     deltay,
                     path_to_slits,
+                    sizey,
                     theta=0):
     """
     Get Coordinates
@@ -40,11 +42,11 @@ def get_coordinates(slits,
         which is why it's passed in here. The other are corrected for later... might change this
 
     :return coordinates:
-        a numpy array, of shape (N_slits, 2, 192). HPC coordinates of each coordinate,
+        a numpy array, of shape (N_slits, 2, sizey). HPC coordinates of each coordinate,
         (N_slits, x/y, position along slit)
     """
     coordinates_counter = 0
-    coordinates = np.zeros((1, 2, 192))
+    coordinates = np.zeros((1, 2, sizey))
 
     for j, slit in enumerate(slits):
         temp_header = fits.open(path_to_slits + slit)[0].header
@@ -135,6 +137,7 @@ def interpolate_section(parameters,
                         hmix,
                         hmiy,
                         path_to_slits,
+                        sizes,
                         slit_indices=(0, 192)):
     """
     Interpolate:
@@ -145,7 +148,7 @@ def interpolate_section(parameters,
 
     :param parameters:
         a list of the 6 parameters which describe the offset of coordinates from the Hinode header
-    :param slits_sorted: TODO: change this to just the subset of slits, not all slits and the indices
+    :param slits_sorted:
         a list of strings, the sorted names of all fits slit file names
     :param full_hmi:
         an (Nx, Ny) array of HMI magnetic, larger than the Hinode map (for padding issues),
@@ -159,6 +162,8 @@ def interpolate_section(parameters,
     :param path_to_slits:
         a string, the absolute path to the folder where the Hinode fits slits are stored
     :param slit_indices:
+
+    :param sizes:
 
     :return: interpolated_HMI_B
         an array of the same size as the slits subset passed in. HMI magnetic data interpolated onto the Hinode
@@ -181,6 +186,7 @@ def interpolate_section(parameters,
                                   deltax,
                                   deltay,
                                   path_to_slits,
+                                  sizes[1],
                                   theta)
 
     # unpacking coordinates into x and y arrays
@@ -220,7 +226,7 @@ def interpolate_section(parameters,
 
 def fetch_data(path_to_slits,
                path_to_HMI='~/sunpy/data/',
-               verbose = True):
+               verbose=True):
     """
     Fetch Data:
         uses Sunpy's Fido to download all 45s HMI magnetograms covered by the given Hinode slits, +/- 1
@@ -343,6 +349,7 @@ def assemble_and_compare_interpolated_HMI(parameters,
                                           hmiy,
                                           hinode_B,
                                           closest_index,
+                                          sizes,
                                           flag):
     """
     Assemble Interpolated HMI:
@@ -372,16 +379,17 @@ def assemble_and_compare_interpolated_HMI(parameters,
         magnetic
     :param closest_index:
         a list of the index of the closest HMI dataset to each slit
+    :param sizes:
+
     :param flag:
-        true: return psuedo-chi-squared (for minimizing parameters)
-        false: return assembled map (for vizualizing once minimization is done)
+        true: return pseudo-chi-squared (for minimizing parameters)
+        false: return assembled map (for visualizing once minimization is done)
 
     :return interpolated_HMI:
         The final interpolated HMI image, created from multiple HMI 45s observations
     """
 
-    N_slits = len(closest_index)
-    interpolated_HMI = np.zeros((192, 192))
+    interpolated_HMI = np.zeros((sizes[0], sizes[1]))
 
     last_HMI_index = closest_index[-1]
 
@@ -400,6 +408,7 @@ def assemble_and_compare_interpolated_HMI(parameters,
                                                                                      hmix,
                                                                                      hmiy,
                                                                                      path_to_slits,
+                                                                                     sizes,
                                                                                      (index1, index2)).T
             except:
                 index2 -= 1
@@ -409,6 +418,7 @@ def assemble_and_compare_interpolated_HMI(parameters,
                                                                                      hmix,
                                                                                      hmiy,
                                                                                      path_to_slits,
+                                                                                     sizes,
                                                                                      (index1, index2)).T
     if flag:
         S0 = np.zeros_like(hinode_B)
@@ -428,8 +438,7 @@ def assemble_and_compare_interpolated_HMI(parameters,
 
 
 def plot_and_viz_compare(hinode_B,
-                         HMI_B,
-                         parameters):
+                         HMI_B):
     """
     Plot and visually compare:
         plot the interpolated HMI dataset vs. the inverted Hinode dataset, show the image.
@@ -438,8 +447,6 @@ def plot_and_viz_compare(hinode_B,
 
     :return: None
     """
-    dx = parameters[0]
-    dy = parameters[1]
 
     fps = 30
 
@@ -450,7 +457,7 @@ def plot_and_viz_compare(hinode_B,
     B_data = [hinode_B[::-1, :][:-3], HMI_B[::-1, :][:-3], hinode_B[::-1, :][:-3]] * 100
 
     ax = plt.subplot()
-    im = ax.imshow(B_data[0], cmap='PuOr', vmin=-60, vmax=60)
+    im = ax.imshow(B_data[0], cmap='PuOr', vmin=-np.std(B_data[0]), vmax=np.std(B_data[0]))
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
     plt.colorbar(im, cax=cax)
@@ -476,6 +483,7 @@ def minimize(initial_guess,
              hmiy,
              hinode_B,
              closest_index,
+             sizes,
              bounds=None):
     """
     Minimize:
@@ -499,10 +507,11 @@ def minimize(initial_guess,
     :param closest_index:
         a list of ints, the index of the closest hmi co-temporal map to each slit. i.e. a list of N_slits ints.
     :param bounds:
-        a list of touples, used to bound the parameter search
+        a list of tuples, used to bound the parameter search
+    :param sizes:
 
     :return flag:
-        a bool, if scipy's minimizer convereged
+        a bool, if scipy's minimize convereged
     :return parameters:
         if converged, return best fit paramters
     """
@@ -518,6 +527,7 @@ def minimize(initial_guess,
                                  hmiy,
                                  hinode_B,
                                  closest_index,
+                                 sizes,
                                  True))
     else:
         x = scipy_minimize(assemble_and_compare_interpolated_HMI,
@@ -530,6 +540,7 @@ def minimize(initial_guess,
                                  hmiy,
                                  hinode_B,
                                  closest_index,
+                                 sizes,
                                  True),
                            bounds=bounds)
 
@@ -562,18 +573,18 @@ def run(path_to_slits,
         a string, path to where sunpy data is to be saved.
 
     :param plot:
-        bool, whether or not to plot the output image. default is .
+        bool, whether to plot the output image. default is .
 
     :param save_coords:
-        bool, whether or not to save HPC coords. Saves as a fits file wherever script is run, format is
+        bool, whether to save HPC coords. Saves as a fits file wherever script is run, format is
         [i_index, j_index, 2], i.e. [:, :, 0] is HPC x and [:, :, 1] is HPC y.
 
     :param save_params:
-        bool, whether or not to save fitted parameters. Saves as a fits file wherever script is run, format is
+        bool, whether to save fitted parameters. Saves as a fits file wherever script is run, format is
         [x_cen, y_cen, p_x, p_y, theta].
 
     :param verbose:
-        bool, whether or not to output progress messages to console. Defualt is true.
+        bool, whether to output progress messages to console. Defualt is true.
 
 
 
@@ -585,11 +596,19 @@ def run(path_to_slits,
     slits_sorted = sorted(slits)  # sort in time via name - this may not be necessary, but just to make sure
     N_slits = len(slits_sorted)
 
+    sizex = fits.open(path_to_slits + '/' + sorted(os.listdir(path_to_slits))[-1])[0].header['SLITINDX'] + 1
+    sizey = fits.open(path_to_slits + '/' + sorted(os.listdir(path_to_slits))[-1])[0].data.shape[1]
+
+    sizes = (sizex, sizey)
+
     if verbose:
         print('Fits slits read in. Number of slits: ' + str(N_slits))
+        print('Size of dataset: ' + str(sizey) + ' x ' + str(sizex))
+
+    if hinode_B is None:
+        hinode_B = create_psuedo_B(sizes, path_to_slits, slits_sorted)
 
     # download and read-in all the needed HMI data:
-
     closest_index = fetch_data(path_to_slits, path_to_sunpy, verbose)
     all_HMI_data, hmix, hmiy = read_in_HMI()
 
@@ -614,6 +633,7 @@ def run(path_to_slits,
                                      hmiy,
                                      hinode_B,
                                      closest_index0,
+                                     sizes,
                                      bounds)
     if verbose:
         print('Initial Rough Alignment Complete.')
@@ -629,6 +649,7 @@ def run(path_to_slits,
                                      hmiy,
                                      hinode_B,
                                      closest_index,
+                                     sizes,
                                      bounds)
 
     if verbose:
@@ -651,9 +672,10 @@ def run(path_to_slits,
                                                           hmiy,
                                                           hinode_B,
                                                           closest_index,
+                                                          sizes,
                                                           False)
 
-        plot_and_viz_compare(hinode_B, final_HMI, parameters)
+        plot_and_viz_compare(hinode_B, final_HMI)
 
     all_HMI_files = os.listdir(path_to_sunpy + '/data/HMI/align/')
 
@@ -677,6 +699,7 @@ def run(path_to_slits,
                                             deltax=deltax,
                                             deltay=deltay,
                                             path_to_slits=path_to_slits,
+                                            sizey=sizey,
                                             theta=theta)
 
         finalx = final_coordinates[:, 0, :]
@@ -696,3 +719,30 @@ def run(path_to_slits,
         fits.writeto('coordinates.fits', output, overwrite=True)
     if save_params:
         fits.writeto('parameters.fits', parameters, overwrite=True)
+
+
+def create_psuedo_B(sizes,
+                    path_to_slits,
+                    slits_sorted,
+                    std_B=50):
+    """
+    If you don't have an inverted magnetic field, create a psuedo-B from a sum over signed circular polarization of
+    second 6302 wing - works fairly well for QS datasets, need to check for active datasets.
+
+    :param sizes:
+    :param path_to_slits:
+    :param slits_sorted:
+    :param std_B:
+
+    :return:
+    """
+
+    psuedo_B = np.zeros((sizes[0], sizes[1]))
+
+    for i, slit in enumerate(slits_sorted):
+        slit_temp = fits.open(path_to_slits + slit)[0].data
+        psuedo_B[:, i] = -np.sum(slit_temp[3, :, -35:], axis=1)
+
+    psuedo_B = psuedo_B / np.std(psuedo_B) * std_B
+
+    return psuedo_B
