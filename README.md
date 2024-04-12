@@ -6,10 +6,11 @@ A code for determining the helio-projective cartesian (HPC) coordinates of Hinod
 
 ---
 ## General Overview
-We upscale HMI data to Hinode's resolution by interpolating HMI onto an irregular grid of HPC coordinates, and cross-correlating the interpolated HMI magnetograms with the Hinode observations. 
 
-Although other codes exist for this problem, we were interested in writing one with a few differences in mind:
+This code aims to align Hinode/SP datasets as precisiely as possible using multiple co-temporal HMI datasets and minizing the difference between interpolated HMI fields and the inverted HINODE one.
+We upscale HMI data to Hinode's resolution by interpolating HMI onto an irregular grid of HPC coordinates and cross-correlate the alignment. 
 
+Our code is specifically designed to align Hinode/SP data as a slit-scanning spectrograph by incorporating a couple specific features:
 1. Using multiple HMI 45s vector magnetograms:
    - Hinode rasters are observed as slit scans over a time extent, usually ~15 minutes. This means that multiple HMI scans are taken during any given Hinode dataset, and the real Sun is changing over the Hinode observations.
    - To be as accurate as possible, we interpolate from the closest HMI map to each slit to build up an artificial upscaled HMI magnetogram made up of multiple 45s HMI magnetograms.
