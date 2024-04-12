@@ -61,8 +61,11 @@ def main():
     if verbose is None:
         verbose = True
 
-    hinode_model = du.fits.open(name_hinode_B)[0].data
-    hinode_B = hinode_model
+    if name_hinode_B.lower() != 'none':
+        hinode_model = du.fits.open(name_hinode_B)[0].data
+        hinode_B = hinode_model
+    else:
+        hinode_B = None
 
     # --- interpolating ---
     du.run(path_to_slits,

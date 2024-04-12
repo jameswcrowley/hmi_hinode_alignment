@@ -457,7 +457,7 @@ def plot_and_viz_compare(hinode_B,
     B_data = [hinode_B[::-1, :][:-3], HMI_B[::-1, :][:-3], hinode_B[::-1, :][:-3]] * 100
 
     ax = plt.subplot()
-    im = ax.imshow(B_data[0], cmap='PuOr', vmin=-60, vmax=60)
+    im = ax.imshow(B_data[0], cmap='PuOr', vmin=-np.std(B_data[0]), vmax=np.std(B_data[0]))
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
     plt.colorbar(im, cax=cax)
@@ -605,8 +605,10 @@ def run(path_to_slits,
         print('Fits slits read in. Number of slits: ' + str(N_slits))
         print('Size of dataset: ' + str(sizey) + ' x ' + str(sizex))
 
-    # download and read-in all the needed HMI data:
+    if hinode_B is None:
+        hinode_B = create_psuedo_B(sizes, path_to_slits, slits_sorted)
 
+    # download and read-in all the needed HMI data:
     closest_index = fetch_data(path_to_slits, path_to_sunpy, verbose)
     all_HMI_data, hmix, hmiy = read_in_HMI()
 
@@ -720,21 +722,27 @@ def run(path_to_slits,
 
 
 def create_psuedo_B(sizes,
-                    slits_sorted):
+                    path_to_slits,
+                    slits_sorted,
+                    std_B=50):
     """
-    Creating a psuedo-B from a sum over signed circular polarization of second 6302 wing
+    If you don't have an inverted magnetic field, create a psuedo-B from a sum over signed circular polarization of
+    second 6302 wing - works fairly well for QS datasets, need to check for active datasets.
 
-    Work-in-progress... a test to see if i can avoid using an inverted B
+    :param sizes:
+    :param path_to_slits:
+    :param slits_sorted:
+    :param std_B:
+
     :return:
     """
 
     psuedo_B = np.zeros((sizes[0], sizes[1]))
 
     for i, slit in enumerate(slits_sorted):
-        slit_temp = fits.open('./raster1_slits/' + slit)[0].data
-
+        slit_temp = fits.open(path_to_slits + slit)[0].data
         psuedo_B[:, i] = -np.sum(slit_temp[3, :, -35:], axis=1)
 
-    psuedo_B /= np.std(psuedo_B)
+    psuedo_B = psuedo_B / np.std(psuedo_B) * std_B
 
     return psuedo_B
