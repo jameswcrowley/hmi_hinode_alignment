@@ -114,8 +114,8 @@ def get_slit_coords(index,
     :return slit coordinates:
         a numpy array of shape
     """
-    y_slit_indices = np.arange(-96, 96, 1)
     x_slit_indices = np.ones(192) * 0.5
+    y_slit_indices = np.arange(-96, 96, 1)
 
     slit_coordinates_x = x_slit_indices * px + xcen
     slit_coordinates_y = y_slit_indices * (py + deltay) + ycen
@@ -128,6 +128,7 @@ def get_slit_coords(index,
     slit_coordinates[0, 1] = slit_coordinates_x * np.sin(p * np.pi / 180) + slit_coordinates_y * np.cos(p * np.pi / 180)
 
     slit_coordinates[0, 0] = slit_coordinates[0, 0] + index * deltax
+    slit_coordinates[0, 1] = slit_coordinates[0, 1]# + index * deltax
     return slit_coordinates
 
 
@@ -715,6 +716,8 @@ def run(path_to_slits,
 
         output[:Nx, :Ny, 0] = finalx[:Nx, :Ny]
         output[:Nx, :Ny, 1] = finaly[:Nx, :Ny]
+
+        output = np.sort(output, axis = 0) # don't know if this matters but to be safe, sort coords / indices together
 
         fits.writeto('coordinates.fits', output, overwrite=True)
     if save_params:
