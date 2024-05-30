@@ -127,8 +127,8 @@ def get_slit_coords(index,
     slit_coordinates[0, 0] = slit_coordinates_x * np.cos(p * np.pi / 180) - slit_coordinates_y * np.sin(p * np.pi / 180)
     slit_coordinates[0, 1] = slit_coordinates_x * np.sin(p * np.pi / 180) + slit_coordinates_y * np.cos(p * np.pi / 180)
 
-    slit_coordinates[0, 0] = slit_coordinates[0, 0] + index * deltax
-    slit_coordinates[0, 1] = slit_coordinates[0, 1]# + index * deltax
+    slit_coordinates[0, 0] = slit_coordinates[0, 0]
+    slit_coordinates[0, 1] = slit_coordinates[0, 1] + index * deltax
     return slit_coordinates
 
 
