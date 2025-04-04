@@ -22,6 +22,11 @@ def main():
                         type=str,
                         required=True,
                         help='path to raw, unpacked Hinode slits')
+    parser.add_argument('--p0',
+                        dest='p0',
+                        type=list,
+                        required=False,
+                        help='initial guess parameters, not required')
     parser.add_argument('--name_hinode_B',
                         dest='name_hinode_B',
                         type=str,
@@ -52,6 +57,7 @@ def main():
 
     plot = arg.plot
     path_to_slits = arg.path_to_slits
+    p0 = arg.p0
     name_hinode_B = arg.name_hinode_B
     path_to_sunpy = arg.path_to_sunpy
     save_coords = arg.save_coords
@@ -71,6 +77,7 @@ def main():
     du.run(path_to_slits,
            hinode_B,
            bounds=None,
+           p0 = None,
            path_to_sunpy=path_to_sunpy,
            plot=plot,
            save_coords=save_coords,

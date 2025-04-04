@@ -550,6 +550,7 @@ def minimize(initial_guess,
 
 def run(path_to_slits,
         hinode_B,
+        p0 = None,
         bounds=None,
         path_to_sunpy='/Users/jamescrowley/sunpy/',
         plot=True,
@@ -565,6 +566,9 @@ def run(path_to_slits,
 
     :param hinode_B:
         a numpy array of signed hinode magnetic field to be aligned. Should be (Nx, Ny) in shape.
+
+    :param p0:
+        initial guess for parameters.
 
     :param bounds:
         a list of floats, initial bounds around which to search for parameters. Defualts to none and use wide bounds.
@@ -619,7 +623,8 @@ def run(path_to_slits,
         print(50 * '-')
         print('Performing Initial Rough Alignment')
 
-    p0 = [14, 34, -8.52e-03, 3.72e-04, 2.5]
+    if p0 is None:
+        p0 = [14, 34, -8.52e-03, 3.72e-04, 2.5]
     closest_index0 = N_slits * [1]
     if bounds is None:
         bounds = [(-40, 40), (-40, 40), (0.9, 1.1), (0.9, 1.1), (2, 4)]
