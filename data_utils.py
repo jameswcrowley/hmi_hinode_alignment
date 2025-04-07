@@ -761,6 +761,8 @@ def create_psuedo_B(sizes,
 
 def show_gui(p0,
              HMI_data,
+             hmix,
+             hmiy,
              initial_width=500
              ):
     """
@@ -770,6 +772,7 @@ def show_gui(p0,
     """
 
     initial_x0, initial_y0, initial_deltax, initial_deltay, initial_theta = p0
+    data = HMI_data
 
     fig, axd = plt.subplot_mosaic(
         """
@@ -781,7 +784,7 @@ def show_gui(p0,
     sub2 = axd['B']
     sub3 = axd['C']
 
-    rect = patches.Rectangle((2048 - initial_width / 2, 2048 - initial_width / 2), initial_width, initial_width,
+    rect = patches.Rectangle((initial_x0 -initial_width/2, initial_y0 -initial_width/2), initial_width, initial_width,
                              linewidth=1, edgecolor='r', facecolor='none', ls='--')
 
     ### Reset Button:
@@ -793,7 +796,7 @@ def show_gui(p0,
         ax=axamp,
         label="Range",
         valmin=1,
-        valmax=4096,
+        valmax=2000,
         valinit=initial_width,
         orientation="horizontal"
     )
@@ -802,8 +805,8 @@ def show_gui(p0,
     x0_slider = Slider(
         ax=axamp,
         label=r"$x_0$",
-        valmin=0,
-        valmax=4000,
+        valmin=-1000,
+        valmax=1000,
         valinit=initial_x0,
         orientation="horizontal"
     )
@@ -812,8 +815,8 @@ def show_gui(p0,
     y0_slider = Slider(
         ax=axamp,
         label=r"$y_0$",
-        valmin=0,
-        valmax=4000,
+        valmin=-1000,
+        valmax=1000,
         valinit=initial_y0,
         orientation="horizontal"
     )
@@ -848,22 +851,29 @@ def show_gui(p0,
         orientation="horizontal"
     )
 
-    data = HMI_data
-
     # WAY downsampling context image to make plotting faster:
-    sub1.imshow(data[::10, ::10],
+    sub1.imshow(data[::10, ::10][::-1, ::-1],
                 vmin=-100,
                 vmax=100,
                 cmap='gray',
                 origin='lower',
-                extent=[0, data.shape[0], 0, data.shape[1]])
+                extent=[hmix[-1, -1], hmix[0, 0], hmiy[-1, -1], hmiy[0, 0]])
+    sub2.set_ylim(hmix[-1, -1], hmix[0, 0])
+    sub2.set_xlim(hmiy[-1, -1], hmiy[0, 0])
+
     scatter1 = sub1.plot(x0_slider.val, y0_slider.val, marker='x', ms=10, c='r')[0]
     scatter2 = sub2.plot(x0_slider.val, y0_slider.val, marker='x', ms=10, c='r')[0]
+
     sub1.add_patch(rect)
 
-    sub2.imshow(data[:, :], vmin=-100, vmax=100, cmap='gray', origin='lower')
-    sub2.set_xlim(2048 - 500, 2048 + 500)
-    sub2.set_ylim(2048 - 500, 2048 + 500)
+    sub2.imshow(data[::2, ::2][::-1, ::-1],
+                vmin=-100,
+                vmax=100,
+                cmap='gray',
+                origin='lower',
+                extent=[hmix[-1, -1], hmix[0, 0], hmiy[-1, -1], hmiy[0, 0]])
+    sub2.set_xlim(initial_x0-initial_width/2, initial_x0+initial_width/2)
+    sub2.set_ylim(initial_y0-initial_width/2, initial_y0+initial_width/2)
     sub3.axis('off')
     def update_hmi_frame(val):
         sub2.set_xlim((x0_slider.val - range_slider.val / 2, x0_slider.val + range_slider.val / 2))
