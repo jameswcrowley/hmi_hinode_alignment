@@ -803,7 +803,7 @@ def show_gui(p0,
         ax=axamp,
         label=r"$x_0$",
         valmin=0,
-        valmax=2000,
+        valmax=4000,
         valinit=initial_x0,
         orientation="horizontal"
     )
@@ -813,7 +813,7 @@ def show_gui(p0,
         ax=axamp,
         label=r"$y_0$",
         valmin=0,
-        valmax=2000,
+        valmax=4000,
         valinit=initial_y0,
         orientation="horizontal"
     )
@@ -850,8 +850,13 @@ def show_gui(p0,
 
     data = HMI_data
 
-    # WAY downsampling context image to make plotting faster
-    sub1.imshow(data[::10, ::10], vmin=-100, vmax=100, cmap='gray', origin='lower', extent = [0, data.shape[0], 0, data.shape[1]])
+    # WAY downsampling context image to make plotting faster:
+    sub1.imshow(data[::10, ::10],
+                vmin=-100,
+                vmax=100,
+                cmap='gray',
+                origin='lower',
+                extent=[0, data.shape[0], 0, data.shape[1]])
     scatter1 = sub1.plot(x0_slider.val, y0_slider.val, marker='x', ms=10, c='r')[0]
     scatter2 = sub2.plot(x0_slider.val, y0_slider.val, marker='x', ms=10, c='r')[0]
     sub1.add_patch(rect)
@@ -861,18 +866,20 @@ def show_gui(p0,
     sub2.set_ylim(2048 - 500, 2048 + 500)
     sub3.axis('off')
     def update_hmi_frame(val):
-        sub2.set_xlim((2048 - range_slider.val / 2, 2048 + range_slider.val / 2))
-        sub2.set_ylim((2048 - range_slider.val / 2, 2048 + range_slider.val / 2))
+        sub2.set_xlim((x0_slider.val - range_slider.val / 2, x0_slider.val + range_slider.val / 2))
+        sub2.set_ylim((y0_slider.val - range_slider.val / 2, y0_slider.val + range_slider.val / 2))
         rect.set_width(range_slider.val)
         rect.set_height(range_slider.val)
 
-        rect.set_x(2048 - range_slider.val / 2)
-        rect.set_y(2048 - range_slider.val / 2)
+        rect.set_x(x0_slider.val - range_slider.val / 2)
+        rect.set_y(y0_slider.val - range_slider.val / 2)
 
         # keeping this commmented, I think this re-renders, i just want to change display things without re-rendering for time
         # fig.canvas.draw_idle()
 
     range_slider.on_changed(update_hmi_frame)
+    x0_slider.on_changed(update_hmi_frame)
+    y0_slider.on_changed(update_hmi_frame)
     def update_hinode_frame(val):
         scatter1.set_data(x0_slider.val, y0_slider.val)
         scatter2.set_data(x0_slider.val, y0_slider.val)
