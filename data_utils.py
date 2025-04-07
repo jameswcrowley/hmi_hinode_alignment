@@ -796,8 +796,11 @@ def show_gui(p0,
                              ls='--')
 
     ### Reset Button:
-    resetax = fig.add_axes([0.8, 0.025, 0.1, 0.04])
-    button = Button(resetax, 'Reset', hovercolor='0.975')
+    resetax = fig.add_axes([0.6, 0.025, 0.1, 0.04])
+    button_reset = Button(resetax, 'Reset', hovercolor='0.975')
+
+    doneax = fig.add_axes([0.8, 0.025, 0.1, 0.04])
+    button_done = Button(doneax, 'Done', hovercolor='0.975')
 
     axamp = fig.add_axes([0.6, 0.15, 0.3, 0.03])
     range_slider = Slider(
@@ -833,8 +836,8 @@ def show_gui(p0,
     deltax_slider = Slider(
         ax=axamp,
         label=r"$\delta_x$",
-        valmin=0,
-        valmax=500,
+        valmin=initial_deltax - 0.5,
+        valmax=initial_deltax + 0.5,
         valinit=initial_deltax,
         orientation="horizontal"
     )
@@ -843,8 +846,8 @@ def show_gui(p0,
     deltay_slider = Slider(
         ax=axamp,
         label=r"$\delta_y$",
-        valmin=0,
-        valmax=500,
+        valmin=initial_deltay - 0.5,
+        valmax=initial_deltay + 0.5,
         valinit=initial_deltay,
         orientation="horizontal"
     )
@@ -853,9 +856,9 @@ def show_gui(p0,
     theta_slider = Slider(
         ax=axamp,
         label=r"$\theta$",
-        valmin=0,
-        valmax=500,
-        valinit=initial_deltay,
+        valmin=initial_theta - 10,
+        valmax=initial_theta - 10,
+        valinit=initial_theta,
         orientation="horizontal"
     )
 
@@ -935,6 +938,20 @@ def show_gui(p0,
         deltay_slider.reset()
         theta_slider.reset()
 
-    button.on_clicked(reset)
+    button_reset.on_clicked(reset)
+
+    def get_values(event):
+        final_paramters = [x0_slider.val,
+                           y0_slider.val,
+                           deltax_slider.val,
+                           deltay_slider.val,
+                           theta_slider.val]
+        plt.close()
+        print(final_paramters)
+        return final_paramters
+
+    button_done.on_clicked(get_values)
 
     plt.show()
+
+
