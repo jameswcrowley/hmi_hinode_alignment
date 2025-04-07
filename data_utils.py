@@ -16,6 +16,9 @@ from scipy.ndimage import gaussian_filter as gf
 
 import matplotlib.animation as animation
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib.widgets import Button, Slider
+import matplotlib.patches as patches
+
 
 
 def get_coordinates(slits,
@@ -550,7 +553,7 @@ def minimize(initial_guess,
 
 def run(path_to_slits,
         hinode_B,
-        p0 = None,
+        p0=None,
         bounds=None,
         path_to_sunpy='/Users/jamescrowley/sunpy/',
         plot=True,
@@ -722,7 +725,7 @@ def run(path_to_slits,
         output[:Nx, :Ny, 0] = finalx[:Nx, :Ny]
         output[:Nx, :Ny, 1] = finaly[:Nx, :Ny]
 
-        output = np.sort(output, axis = 0) # don't know if this matters but to be safe, sort coords / indices together
+        output = np.sort(output, axis=0)  # don't know if this matters but to be safe, sort coords / indices together
 
         fits.writeto('coordinates.fits', output, overwrite=True)
     if save_params:
@@ -755,13 +758,163 @@ def create_psuedo_B(sizes,
 
     return psuedo_B
 
-def show_gui():
+
+def show_gui(p0,
+             HMI_data,
+             initial_width=500
+             ):
     """
     Code to show a small GUI showing the initial rough alignment. Values from sliders will
     :param parameters:
     :return:
     """
 
+    initial_x0, initial_y0, initial_deltax, initial_deltay, initial_theta = p0
 
+    fig, axd = plt.subplot_mosaic(
+        """
+        AAAA.CC
+        BBBB.CC
+        """)
 
+    sub1 = axd['A']
+    sub2 = axd['B']
+    sub3 = axd['C']
 
+    rect = patches.Rectangle((2048 - initial_width / 2, 2048 - initial_width / 2), initial_width, initial_width,
+                             linewidth=1, edgecolor='r', facecolor='none', ls='--')
+
+    ### Reset Button:
+    resetax = fig.add_axes([0.8, 0.025, 0.1, 0.04])
+    button = Button(resetax, 'Reset', hovercolor='0.975')
+
+    axamp = fig.add_axes([0.6, 0.15, 0.3, 0.03])
+    range_slider = Slider(
+        ax=axamp,
+        label="Range",
+        valmin=1,
+        valmax=4096,
+        valinit=initial_width,
+        orientation="horizontal"
+    )
+
+    axamp = fig.add_axes([0.6, 0.45, 0.3, 0.03])
+    x0_slider = Slider(
+        ax=axamp,
+        label=r"$x_0$",
+        valmin=0,
+        valmax=500,
+        valinit=initial_x0,
+        orientation="horizontal"
+    )
+
+    axamp = fig.add_axes([0.6, 0.40, 0.3, 0.03])
+    y0_slider = Slider(
+        ax=axamp,
+        label=r"$y_0$",
+        valmin=0,
+        valmax=500,
+        valinit=initial_y0,
+        orientation="horizontal"
+    )
+
+    axamp = fig.add_axes([0.6, 0.35, 0.3, 0.03])
+    deltax_slider = Slider(
+        ax=axamp,
+        label=r"$\delta_x$",
+        valmin=0,
+        valmax=500,
+        valinit=initial_deltax,
+        orientation="horizontal"
+    )
+
+    axamp = fig.add_axes([0.6, 0.30, 0.3, 0.03])
+    deltay_slider = Slider(
+        ax=axamp,
+        label=r"$\delta_y$",
+        valmin=0,
+        valmax=500,
+        valinit=initial_deltay,
+        orientation="horizontal"
+    )
+
+    axamp = fig.add_axes([0.6, 0.25, 0.3, 0.03])
+    theta_slider = Slider(
+        ax=axamp,
+        label=r"$\theta$",
+        valmin=0,
+        valmax=500,
+        valinit=initial_deltay,
+        orientation="horizontal"
+    )
+
+    real_data = True
+
+    if real_data:
+        data = HMI_data
+
+        sub1.imshow(data[:, :], vmin=-100, vmax=100, cmap='gray', origin='lower')
+        sub1.add_patch(rect)
+
+        sub2.imshow(data[:, :], vmin=-100, vmax=100, cmap='gray', origin='lower')
+        sub2.set_xlim(2048 - 500, 2048 + 500)
+        sub2.set_ylim(2048 - 500, 2048 + 500)
+        sub3.axis('off')
+
+    else:
+        ### making fake test data, slightly asymetric to see difference:
+        x = np.linspace(0, 4095, 4096)
+        y = np.linspace(0, 4095, 4096)
+        x, y = np.meshgrid(x, y)
+
+        sigma_x = 800.
+        sigma_y = 500.
+
+        data1 = np.exp(-((x - 2048) ** 2 / (2 * sigma_x ** 2) + (y - 2048) ** 2 / (2 * sigma_y ** 2)))
+        data2 = 0.1 * np.exp(-((x - 2248) ** 2 / (1 / 50 * sigma_y ** 2) + (y - 2248) ** 2 / (1 / 50 * sigma_x ** 2)))
+
+        data = data1 + data2
+
+        sub1.imshow(data[:, :], vmin=0, vmax=1, cmap='Spectral_r', origin='lower')
+        sub1.add_patch(rect)
+
+        sub2.imshow(data[:, :], vmin=0, vmax=1, cmap='Spectral_r', origin='lower')
+        sub2.set_xlim(2048 - 500, 2048 + 500)
+        sub2.set_ylim(2048 - 500, 2048 + 500)
+        sub3.axis('off')
+
+    def update_hmi_frame(val):
+        sub2.set_xlim((2048 - range_slider.val / 2, 2048 + range_slider.val / 2))
+        sub2.set_ylim((2048 - range_slider.val / 2, 2048 + range_slider.val / 2))
+        rect.set_width(range_slider.val)
+        rect.set_height(range_slider.val)
+
+        rect.set_x(2048 - range_slider.val / 2)
+        rect.set_y(2048 - range_slider.val / 2)
+        # keeping this commmented, I think this re-renders, i just want to change display things without re-rendering for time
+        # fig.canvas.draw_idle()
+
+    # register the update function with each slider
+    range_slider.on_changed(update_hmi_frame)
+
+    def update_hinode_frame(val):
+        fig.canvas.draw_idle()
+
+    x0_slider.on_changed(update_hinode_frame)
+    y0_slider.on_changed(update_hinode_frame)
+    deltax_slider.on_changed(update_hinode_frame)
+    deltay_slider.on_changed(update_hinode_frame)
+    theta_slider.on_changed(update_hinode_frame)
+
+    def reset(event):
+        range_slider.reset()
+
+        x0_slider.reset()
+        y0_slider.reset()
+        deltax_slider.reset()
+        deltay_slider.reset()
+        theta_slider.reset()
+
+    button.on_clicked(reset)
+
+    plt.show()
