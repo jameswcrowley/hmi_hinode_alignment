@@ -20,7 +20,6 @@ from matplotlib.widgets import Button, Slider
 import matplotlib.patches as patches
 
 
-
 def get_coordinates(slits,
                     i,
                     deltax,
@@ -763,16 +762,20 @@ def show_gui(p0,
              HMI_data,
              hmix,
              hmiy,
-             initial_width=500
+             coords,
+             hinode_B
              ):
     """
     Code to show a small GUI showing the initial rough alignment. Values from sliders will
     :param parameters:
     :return:
     """
-
+    initial_width = 100
     initial_x0, initial_y0, initial_deltax, initial_deltay, initial_theta = p0
     data = HMI_data
+
+    middlex = np.mean(coords[:, :, 0])
+    middley = np.mean(coords[:, :, 1])
 
     fig, axd = plt.subplot_mosaic(
         """
@@ -784,8 +787,13 @@ def show_gui(p0,
     sub2 = axd['B']
     sub3 = axd['C']
 
-    rect = patches.Rectangle((initial_x0 -initial_width/2, initial_y0 -initial_width/2), initial_width, initial_width,
-                             linewidth=1, edgecolor='r', facecolor='none', ls='--')
+    rect = patches.Rectangle((middlex + initial_x0 - initial_width / 2, middley + initial_y0 - initial_width / 2),
+                             initial_width,
+                             initial_width,
+                             linewidth=1,
+                             edgecolor='r',
+                             facecolor='none',
+                             ls='--')
 
     ### Reset Button:
     resetax = fig.add_axes([0.8, 0.025, 0.1, 0.04])
@@ -796,7 +804,7 @@ def show_gui(p0,
         ax=axamp,
         label="Range",
         valmin=1,
-        valmax=2000,
+        valmax=500,
         valinit=initial_width,
         orientation="horizontal"
     )
@@ -805,8 +813,8 @@ def show_gui(p0,
     x0_slider = Slider(
         ax=axamp,
         label=r"$x_0$",
-        valmin=-1000,
-        valmax=1000,
+        valmin=initial_x0 - 50,
+        valmax=initial_x0 + 50,
         valinit=initial_x0,
         orientation="horizontal"
     )
@@ -815,8 +823,8 @@ def show_gui(p0,
     y0_slider = Slider(
         ax=axamp,
         label=r"$y_0$",
-        valmin=-1000,
-        valmax=1000,
+        valmin=initial_y0 - 50,
+        valmax=initial_y0 + 50,
         valinit=initial_y0,
         orientation="horizontal"
     )
@@ -852,7 +860,7 @@ def show_gui(p0,
     )
 
     # WAY downsampling context image to make plotting faster:
-    sub1.imshow(data[::10, ::10][::-1, ::-1],
+    sub1.imshow(data[::15, ::15][::-1, ::-1],
                 vmin=-100,
                 vmax=100,
                 cmap='gray',
@@ -861,28 +869,40 @@ def show_gui(p0,
     sub2.set_ylim(hmix[-1, -1], hmix[0, 0])
     sub2.set_xlim(hmiy[-1, -1], hmiy[0, 0])
 
-    scatter1 = sub1.plot(x0_slider.val, y0_slider.val, marker='x', ms=10, c='r')[0]
-    scatter2 = sub2.plot(x0_slider.val, y0_slider.val, marker='x', ms=10, c='r')[0]
+    image1 = sub1.plot(middlex + x0_slider.val - initial_x0,
+                       middley + y0_slider.val - initial_y0, marker='x', ms=10, c='r')[0]
 
     sub1.add_patch(rect)
 
-    sub2.imshow(data[::2, ::2][::-1, ::-1],
-                vmin=-100,
-                vmax=100,
+    sub2.imshow(data[:, :][::-1, ::-1],
+                vmin=-50,
+                vmax=50,
                 cmap='gray',
                 origin='lower',
                 extent=[hmix[-1, -1], hmix[0, 0], hmiy[-1, -1], hmiy[0, 0]])
-    sub2.set_xlim(initial_x0-initial_width/2, initial_x0+initial_width/2)
-    sub2.set_ylim(initial_y0-initial_width/2, initial_y0+initial_width/2)
+    sub2.set_xlim(middlex - initial_width / 2, middlex + initial_width / 2)
+    sub2.set_ylim(middley - initial_width / 2, middley + initial_width / 2)
+
+    image2 = sub2.imshow(hinode_B,
+                         vmin=-50,
+                         vmax=50,
+                         cmap='PuOr',
+                         alpha=0.5,
+                         extent=[coords[0, 0, 0], coords[-1, -1, 0], coords[0, 0, 1], coords[-1, -1, 1]],
+                         origin='lower')
+
     sub3.axis('off')
+
     def update_hmi_frame(val):
-        sub2.set_xlim((x0_slider.val - range_slider.val / 2, x0_slider.val + range_slider.val / 2))
-        sub2.set_ylim((y0_slider.val - range_slider.val / 2, y0_slider.val + range_slider.val / 2))
+        sub2.set_xlim((middlex + x0_slider.val - initial_x0 - range_slider.val / 2,
+                       middlex + x0_slider.val - initial_x0 + range_slider.val / 2))
+        sub2.set_ylim((middley + y0_slider.val - initial_y0 - range_slider.val / 2,
+                       middley + y0_slider.val - initial_y0 + range_slider.val / 2))
         rect.set_width(range_slider.val)
         rect.set_height(range_slider.val)
 
-        rect.set_x(x0_slider.val - range_slider.val / 2)
-        rect.set_y(y0_slider.val - range_slider.val / 2)
+        rect.set_x(middlex + x0_slider.val - initial_x0 - range_slider.val / 2)
+        rect.set_y(middley + y0_slider.val - initial_y0 - range_slider.val / 2)
 
         # keeping this commmented, I think this re-renders, i just want to change display things without re-rendering for time
         # fig.canvas.draw_idle()
@@ -890,9 +910,15 @@ def show_gui(p0,
     range_slider.on_changed(update_hmi_frame)
     x0_slider.on_changed(update_hmi_frame)
     y0_slider.on_changed(update_hmi_frame)
+
     def update_hinode_frame(val):
-        scatter1.set_data(x0_slider.val, y0_slider.val)
-        scatter2.set_data(x0_slider.val, y0_slider.val)
+        image1.set_data(middlex + x0_slider.val - initial_x0,
+                        middley + y0_slider.val - initial_y0)
+
+        image2.set_extent((coords[0, 0, 0] + x0_slider.val - initial_x0,
+                           coords[-1, -1, 0] + x0_slider.val - initial_x0,
+                           coords[0, 0, 1] + y0_slider.val - initial_y0,
+                           coords[-1, -1, 1] + y0_slider.val - initial_y0))
 
     x0_slider.on_changed(update_hinode_frame)
     y0_slider.on_changed(update_hinode_frame)
