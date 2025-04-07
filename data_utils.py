@@ -803,7 +803,7 @@ def show_gui(p0,
         ax=axamp,
         label=r"$x_0$",
         valmin=0,
-        valmax=500,
+        valmax=2000,
         valinit=initial_x0,
         orientation="horizontal"
     )
@@ -813,7 +813,7 @@ def show_gui(p0,
         ax=axamp,
         label=r"$y_0$",
         valmin=0,
-        valmax=500,
+        valmax=2000,
         valinit=initial_y0,
         orientation="horizontal"
     )
@@ -848,41 +848,17 @@ def show_gui(p0,
         orientation="horizontal"
     )
 
-    real_data = True
+    data = HMI_data
 
-    if real_data:
-        data = HMI_data
+    sub1.imshow(data[:, :], vmin=-100, vmax=100, cmap='gray', origin='lower')
+    scatter1 = sub1.plot(x0_slider.val, y0_slider.val, marker='x', ms=10)[0]
+    scatter2 = sub2.plot(x0_slider.val, y0_slider.val, marker='x', ms=10)[0]
+    sub1.add_patch(rect)
 
-        sub1.imshow(data[:, :], vmin=-100, vmax=100, cmap='gray', origin='lower')
-        sub1.add_patch(rect)
-
-        sub2.imshow(data[:, :], vmin=-100, vmax=100, cmap='gray', origin='lower')
-        sub2.set_xlim(2048 - 500, 2048 + 500)
-        sub2.set_ylim(2048 - 500, 2048 + 500)
-        sub3.axis('off')
-
-    else:
-        ### making fake test data, slightly asymetric to see difference:
-        x = np.linspace(0, 4095, 4096)
-        y = np.linspace(0, 4095, 4096)
-        x, y = np.meshgrid(x, y)
-
-        sigma_x = 800.
-        sigma_y = 500.
-
-        data1 = np.exp(-((x - 2048) ** 2 / (2 * sigma_x ** 2) + (y - 2048) ** 2 / (2 * sigma_y ** 2)))
-        data2 = 0.1 * np.exp(-((x - 2248) ** 2 / (1 / 50 * sigma_y ** 2) + (y - 2248) ** 2 / (1 / 50 * sigma_x ** 2)))
-
-        data = data1 + data2
-
-        sub1.imshow(data[:, :], vmin=0, vmax=1, cmap='Spectral_r', origin='lower')
-        sub1.add_patch(rect)
-
-        sub2.imshow(data[:, :], vmin=0, vmax=1, cmap='Spectral_r', origin='lower')
-        sub2.set_xlim(2048 - 500, 2048 + 500)
-        sub2.set_ylim(2048 - 500, 2048 + 500)
-        sub3.axis('off')
-
+    sub2.imshow(data[:, :], vmin=-100, vmax=100, cmap='gray', origin='lower')
+    sub2.set_xlim(2048 - 500, 2048 + 500)
+    sub2.set_ylim(2048 - 500, 2048 + 500)
+    sub3.axis('off')
     def update_hmi_frame(val):
         sub2.set_xlim((2048 - range_slider.val / 2, 2048 + range_slider.val / 2))
         sub2.set_ylim((2048 - range_slider.val / 2, 2048 + range_slider.val / 2))
@@ -891,14 +867,14 @@ def show_gui(p0,
 
         rect.set_x(2048 - range_slider.val / 2)
         rect.set_y(2048 - range_slider.val / 2)
+
         # keeping this commmented, I think this re-renders, i just want to change display things without re-rendering for time
         # fig.canvas.draw_idle()
 
-    # register the update function with each slider
     range_slider.on_changed(update_hmi_frame)
-
     def update_hinode_frame(val):
-        fig.canvas.draw_idle()
+        scatter1.set_data(x0_slider.val, y0_slider.val)
+        scatter2.set_data(x0_slider.val, y0_slider.val)
 
     x0_slider.on_changed(update_hinode_frame)
     y0_slider.on_changed(update_hinode_frame)
