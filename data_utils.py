@@ -850,9 +850,10 @@ def show_gui(p0,
 
     data = HMI_data
 
-    sub1.imshow(data[:, :], vmin=-100, vmax=100, cmap='gray', origin='lower')
-    scatter1 = sub1.plot(x0_slider.val, y0_slider.val, marker='x', ms=10)[0]
-    scatter2 = sub2.plot(x0_slider.val, y0_slider.val, marker='x', ms=10)[0]
+    # WAY downsampling context image to make plotting faster
+    sub1.imshow(data[::10, ::10], vmin=-100, vmax=100, cmap='gray', origin='lower', extent = [0, data.shape[0], 0, data.shape[1]])
+    scatter1 = sub1.plot(x0_slider.val, y0_slider.val, marker='x', ms=10, c='r')[0]
+    scatter2 = sub2.plot(x0_slider.val, y0_slider.val, marker='x', ms=10, c='r')[0]
     sub1.add_patch(rect)
 
     sub2.imshow(data[:, :], vmin=-100, vmax=100, cmap='gray', origin='lower')
