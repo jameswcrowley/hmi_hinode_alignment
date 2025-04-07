@@ -754,3 +754,14 @@ def create_psuedo_B(sizes,
     psuedo_B = psuedo_B / np.std(psuedo_B) * std_B
 
     return psuedo_B
+
+def show_gui():
+    """
+    Code to show a small GUI showing the initial rough alignment. Values from sliders will
+    :param parameters:
+    :return:
+    """
+
+
+
+
