@@ -509,9 +509,11 @@ def minimize(initial_guess,
         a numpy array of signed hinode magnetic field to be aligned. Should be (Nx, Ny) in shape.
     :param closest_index:
         a list of ints, the index of the closest hmi co-temporal map to each slit. i.e. a list of N_slits ints.
+    :param sizes:
+
     :param bounds:
         a list of tuples, used to bound the parameter search
-    :param sizes:
+
 
     :return flag:
         a bool, if scipy's minimize convereged
@@ -558,7 +560,8 @@ def run(path_to_slits,
         plot=True,
         save_coords=False,
         save_params=False,
-        verbose=True):
+        verbose=True,
+        gui=True):
     """
     Run:
         I want this to be the funciton which calls all the others to run the alignment, almost like a main
@@ -593,7 +596,8 @@ def run(path_to_slits,
     :param verbose:
         bool, whether to output progress messages to console. Defualt is true.
 
-
+    :param gui:
+        a bool, whether to use GUI in between initial and final fit to roughly vizualize alignment
 
     :return: 
     """
@@ -646,6 +650,49 @@ def run(path_to_slits,
     if verbose:
         print('Initial Rough Alignment Complete.')
         print('Estimate of parameters: ' + str(parameters))
+
+    if gui:
+        dx = (parameters[0]) * u.arcsec
+        dy = (parameters[1]) * u.arcsec
+
+        deltax = parameters[2]
+        deltay = parameters[3]
+
+        theta = parameters[4]
+
+        initial_coords = get_coordinates(slits=slits,
+                                         i=0,
+                                         deltax=deltax,
+                                         deltay=deltay,
+                                         path_to_slits=path_to_slits,
+                                         sizey=sizey,
+                                         theta=theta)
+        initialx = initial_coords[:, 0, :]
+        initialy = initial_coords[:, 1, :]
+
+        initialx = (initialx * (1 - deltax)) + dx.value
+        initialy = (initialy * (1 - deltay)) + dy.value
+
+        Nx = hinode_B.shape[0]
+        Ny = hinode_B.shape[1]
+
+        output = np.zeros((initialx.shape[0], initialx.shape[1], 2))
+
+        output[:Nx, :Ny, 0] = initialx[:Nx, :Ny]
+        output[:Nx, :Ny, 1] = initialy[:Nx, :Ny]
+
+        output = np.sort(output, axis=0)
+
+        # TODO: replace initial rough fit (SLOW) with GUI once working
+        # TODO: get returned paramters working
+
+        show_gui(parameters,
+                 all_HMI_data[:, :, 0],
+                 hmix.value,
+                 hmiy.value,
+                 output,
+                 hinode_B)
+
         print(50 * '-')
         print('Performing Final Fit')
 
@@ -758,7 +805,7 @@ def create_psuedo_B(sizes,
     return psuedo_B
 
 
-def show_gui(p0,
+def show_gui(parameters,
              HMI_data,
              hmix,
              hmiy,
@@ -768,10 +815,12 @@ def show_gui(p0,
     """
     Code to show a small GUI showing the initial rough alignment. Values from sliders will
     :param parameters:
-    :return:
+
+    :return: parameters:
+        a list of parameters, returned when done button in gui is pressed
     """
     initial_width = 100
-    initial_x0, initial_y0, initial_deltax, initial_deltay, initial_theta = p0
+    initial_x0, initial_y0, initial_deltax, initial_deltay, initial_theta = parameters
     data = HMI_data
 
     middlex = np.mean(coords[:, :, 0])
@@ -857,7 +906,7 @@ def show_gui(p0,
         ax=axamp,
         label=r"$\theta$",
         valmin=initial_theta - 10,
-        valmax=initial_theta - 10,
+        valmax=initial_theta + 10,
         valinit=initial_theta,
         orientation="horizontal"
     )
@@ -908,7 +957,7 @@ def show_gui(p0,
         rect.set_y(middley + y0_slider.val - initial_y0 - range_slider.val / 2)
 
         # keeping this commmented, I think this re-renders, i just want to change display things without re-rendering for time
-        # fig.canvas.draw_idle()
+        fig.canvas.draw_idle()
 
     range_slider.on_changed(update_hmi_frame)
     x0_slider.on_changed(update_hmi_frame)
@@ -940,18 +989,25 @@ def show_gui(p0,
 
     button_reset.on_clicked(reset)
 
-    def get_values(event):
-        final_paramters = [x0_slider.val,
-                           y0_slider.val,
-                           deltax_slider.val,
-                           deltay_slider.val,
-                           theta_slider.val]
+    # final_parameters = None
+
+    # def get_values(event):
+    #     global final_parameters
+    #     final_parameters = [x0_slider.val,
+    #                         y0_slider.val,
+    #                         deltax_slider.val,
+    #                         deltay_slider.val,
+    #                         theta_slider.val]
+    #     return final_parameters
+
+    def done(event):
         plt.close()
-        print(final_paramters)
-        return final_paramters
 
-    button_done.on_clicked(get_values)
+    # button_done.on_clicked(get_values)
+    button_done.on_clicked(done)
 
-    plt.show()
-
-
+    # TODO: figure out how to make button press return values
+    # while final_parameters is not None:
+    #     plt.show()
+    #
+    # return final_parameters
