@@ -31,8 +31,12 @@ def get_coordinates(slits,
     Get Coordinates
         Returns the HPC coordinates of a set of slits passed in
 
+    # TODO: fill these docustrings in:
 
-
+    :param i:
+    :param deltax:
+    :param deltay:
+    :param sizey:
     :param slits:
         a list of strings, names of slits to get coordinates from
     :param path_to_slits:
@@ -97,6 +101,10 @@ def get_slit_coords(index,
 
 
 
+    :param px: initial plate scale in x, nominally from header
+    :param py: initial plate scale in y, nominally from header
+    :param deltax: modification to plate scale in x, to be fitted for
+    :param deltay: modification to plate scale in y, to be fitted for
     :param index:
         a int, the index of the slit along the raster.
         Used for stretching the raster horizontally by the x-coordinate of each slit by xdelt * index
@@ -104,10 +112,6 @@ def get_slit_coords(index,
         a float, total offset of the center of the dataset by x arcsec
     :param ycen:
         a float, total offset of the center of the dataset by y arcsec
-    :param xdelt:
-        a float, multiplier offset correction for spacing between pixels
-    :param ydelt:
-        a float, multiplier offset correction for spacing between pixels
     :param p1:
         roll angle, from FITs header
     :param theta:
@@ -242,6 +246,7 @@ def fetch_data(path_to_slits,
 
 
 
+    :param verbose: bool, to print progress messages
     :param path_to_slits:
         Path to hinode fits slits. Must only be fits with headers in Hinode CSAC format - must be empty of other files
 
@@ -814,7 +819,12 @@ def show_gui(parameters,
              ):
     """
     Code to show a small GUI showing the initial rough alignment. Values from sliders will
-    :param parameters:
+    :param HMI_data: numpy array of single HMI data in fits format to plot as background.
+    :param hmix: numpy array of HPC coordinates corresponding to HMI x coords
+    :param hmiy: numpy array of HPC coordinates corresponding to HMI x coords
+    :param coords: numpy array of Hinode coords
+    :param hinode_B: numpy arary of hinode magnetic field in shape of coords to plot
+    :param parameters: initial parameters to set slider initial values
 
     :return: parameters:
         a list of parameters, returned when done button in gui is pressed
