@@ -16,6 +16,8 @@ from scipy.ndimage import gaussian_filter as gf
 
 import matplotlib.animation as animation
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib.widgets import Button, Slider
+import matplotlib.patches as patches
 
 
 def get_coordinates(slits,
@@ -507,9 +509,11 @@ def minimize(initial_guess,
         a numpy array of signed hinode magnetic field to be aligned. Should be (Nx, Ny) in shape.
     :param closest_index:
         a list of ints, the index of the closest hmi co-temporal map to each slit. i.e. a list of N_slits ints.
+    :param sizes:
+
     :param bounds:
         a list of tuples, used to bound the parameter search
-    :param sizes:
+
 
     :return flag:
         a bool, if scipy's minimize convereged
@@ -550,13 +554,14 @@ def minimize(initial_guess,
 
 def run(path_to_slits,
         hinode_B,
-        p0 = None,
+        p0=None,
         bounds=None,
         path_to_sunpy='/Users/jamescrowley/sunpy/',
         plot=True,
         save_coords=False,
         save_params=False,
-        verbose=True):
+        verbose=True,
+        gui=True):
     """
     Run:
         I want this to be the funciton which calls all the others to run the alignment, almost like a main
@@ -591,7 +596,8 @@ def run(path_to_slits,
     :param verbose:
         bool, whether to output progress messages to console. Defualt is true.
 
-
+    :param gui:
+        a bool, whether to use GUI in between initial and final fit to roughly vizualize alignment
 
     :return: 
     """
@@ -644,6 +650,49 @@ def run(path_to_slits,
     if verbose:
         print('Initial Rough Alignment Complete.')
         print('Estimate of parameters: ' + str(parameters))
+
+    if gui:
+        dx = (parameters[0]) * u.arcsec
+        dy = (parameters[1]) * u.arcsec
+
+        deltax = parameters[2]
+        deltay = parameters[3]
+
+        theta = parameters[4]
+
+        initial_coords = get_coordinates(slits=slits,
+                                         i=0,
+                                         deltax=deltax,
+                                         deltay=deltay,
+                                         path_to_slits=path_to_slits,
+                                         sizey=sizey,
+                                         theta=theta)
+        initialx = initial_coords[:, 0, :]
+        initialy = initial_coords[:, 1, :]
+
+        initialx = (initialx * (1 - deltax)) + dx.value
+        initialy = (initialy * (1 - deltay)) + dy.value
+
+        Nx = hinode_B.shape[0]
+        Ny = hinode_B.shape[1]
+
+        output = np.zeros((initialx.shape[0], initialx.shape[1], 2))
+
+        output[:Nx, :Ny, 0] = initialx[:Nx, :Ny]
+        output[:Nx, :Ny, 1] = initialy[:Nx, :Ny]
+
+        output = np.sort(output, axis=0)
+
+        # TODO: replace initial rough fit (SLOW) with GUI once working
+        # TODO: get returned paramters working
+
+        show_gui(parameters,
+                 all_HMI_data[:, :, 0],
+                 hmix.value,
+                 hmiy.value,
+                 output,
+                 hinode_B)
+
         print(50 * '-')
         print('Performing Final Fit')
 
@@ -722,7 +771,7 @@ def run(path_to_slits,
         output[:Nx, :Ny, 0] = finalx[:Nx, :Ny]
         output[:Nx, :Ny, 1] = finaly[:Nx, :Ny]
 
-        output = np.sort(output, axis = 0) # don't know if this matters but to be safe, sort coords / indices together
+        output = np.sort(output, axis=0)  # don't know if this matters but to be safe, sort coords / indices together
 
         fits.writeto('coordinates.fits', output, overwrite=True)
     if save_params:
@@ -754,3 +803,211 @@ def create_psuedo_B(sizes,
     psuedo_B = psuedo_B / np.std(psuedo_B) * std_B
 
     return psuedo_B
+
+
+def show_gui(parameters,
+             HMI_data,
+             hmix,
+             hmiy,
+             coords,
+             hinode_B
+             ):
+    """
+    Code to show a small GUI showing the initial rough alignment. Values from sliders will
+    :param parameters:
+
+    :return: parameters:
+        a list of parameters, returned when done button in gui is pressed
+    """
+    initial_width = 100
+    initial_x0, initial_y0, initial_deltax, initial_deltay, initial_theta = parameters
+    data = HMI_data
+
+    middlex = np.mean(coords[:, :, 0])
+    middley = np.mean(coords[:, :, 1])
+
+    fig, axd = plt.subplot_mosaic(
+        """
+        AAAA.CC
+        BBBB.CC
+        """)
+
+    sub1 = axd['A']
+    sub2 = axd['B']
+    sub3 = axd['C']
+
+    rect = patches.Rectangle((middlex + initial_x0 - initial_width / 2, middley + initial_y0 - initial_width / 2),
+                             initial_width,
+                             initial_width,
+                             linewidth=1,
+                             edgecolor='r',
+                             facecolor='none',
+                             ls='--')
+
+    ### Reset Button:
+    resetax = fig.add_axes([0.6, 0.025, 0.1, 0.04])
+    button_reset = Button(resetax, 'Reset', hovercolor='0.975')
+
+    doneax = fig.add_axes([0.8, 0.025, 0.1, 0.04])
+    button_done = Button(doneax, 'Done', hovercolor='0.975')
+
+    axamp = fig.add_axes([0.6, 0.15, 0.3, 0.03])
+    range_slider = Slider(
+        ax=axamp,
+        label="Range",
+        valmin=1,
+        valmax=500,
+        valinit=initial_width,
+        orientation="horizontal"
+    )
+
+    axamp = fig.add_axes([0.6, 0.45, 0.3, 0.03])
+    x0_slider = Slider(
+        ax=axamp,
+        label=r"$x_0$",
+        valmin=initial_x0 - 50,
+        valmax=initial_x0 + 50,
+        valinit=initial_x0,
+        orientation="horizontal"
+    )
+
+    axamp = fig.add_axes([0.6, 0.40, 0.3, 0.03])
+    y0_slider = Slider(
+        ax=axamp,
+        label=r"$y_0$",
+        valmin=initial_y0 - 50,
+        valmax=initial_y0 + 50,
+        valinit=initial_y0,
+        orientation="horizontal"
+    )
+
+    axamp = fig.add_axes([0.6, 0.35, 0.3, 0.03])
+    deltax_slider = Slider(
+        ax=axamp,
+        label=r"$\delta_x$",
+        valmin=initial_deltax - 0.5,
+        valmax=initial_deltax + 0.5,
+        valinit=initial_deltax,
+        orientation="horizontal"
+    )
+
+    axamp = fig.add_axes([0.6, 0.30, 0.3, 0.03])
+    deltay_slider = Slider(
+        ax=axamp,
+        label=r"$\delta_y$",
+        valmin=initial_deltay - 0.5,
+        valmax=initial_deltay + 0.5,
+        valinit=initial_deltay,
+        orientation="horizontal"
+    )
+
+    axamp = fig.add_axes([0.6, 0.25, 0.3, 0.03])
+    theta_slider = Slider(
+        ax=axamp,
+        label=r"$\theta$",
+        valmin=initial_theta - 10,
+        valmax=initial_theta + 10,
+        valinit=initial_theta,
+        orientation="horizontal"
+    )
+
+    # WAY downsampling context image to make plotting faster:
+    sub1.imshow(data[::15, ::15][::-1, ::-1],
+                vmin=-100,
+                vmax=100,
+                cmap='gray',
+                origin='lower',
+                extent=[hmix[-1, -1], hmix[0, 0], hmiy[-1, -1], hmiy[0, 0]])
+    sub2.set_ylim(hmix[-1, -1], hmix[0, 0])
+    sub2.set_xlim(hmiy[-1, -1], hmiy[0, 0])
+
+    image1 = sub1.plot(middlex + x0_slider.val - initial_x0,
+                       middley + y0_slider.val - initial_y0, marker='x', ms=10, c='r')[0]
+
+    sub1.add_patch(rect)
+
+    sub2.imshow(data[:, :][::-1, ::-1],
+                vmin=-50,
+                vmax=50,
+                cmap='gray',
+                origin='lower',
+                extent=[hmix[-1, -1], hmix[0, 0], hmiy[-1, -1], hmiy[0, 0]])
+    sub2.set_xlim(middlex - initial_width / 2, middlex + initial_width / 2)
+    sub2.set_ylim(middley - initial_width / 2, middley + initial_width / 2)
+
+    image2 = sub2.imshow(hinode_B,
+                         vmin=-50,
+                         vmax=50,
+                         cmap='PuOr',
+                         alpha=0.5,
+                         extent=[coords[0, 0, 0], coords[-1, -1, 0], coords[0, 0, 1], coords[-1, -1, 1]],
+                         origin='lower')
+
+    sub3.axis('off')
+
+    def update_hmi_frame(val):
+        sub2.set_xlim((middlex + x0_slider.val - initial_x0 - range_slider.val / 2,
+                       middlex + x0_slider.val - initial_x0 + range_slider.val / 2))
+        sub2.set_ylim((middley + y0_slider.val - initial_y0 - range_slider.val / 2,
+                       middley + y0_slider.val - initial_y0 + range_slider.val / 2))
+        rect.set_width(range_slider.val)
+        rect.set_height(range_slider.val)
+
+        rect.set_x(middlex + x0_slider.val - initial_x0 - range_slider.val / 2)
+        rect.set_y(middley + y0_slider.val - initial_y0 - range_slider.val / 2)
+
+        # keeping this commmented, I think this re-renders, i just want to change display things without re-rendering for time
+        fig.canvas.draw_idle()
+
+    range_slider.on_changed(update_hmi_frame)
+    x0_slider.on_changed(update_hmi_frame)
+    y0_slider.on_changed(update_hmi_frame)
+
+    def update_hinode_frame(val):
+        image1.set_data(middlex + x0_slider.val - initial_x0,
+                        middley + y0_slider.val - initial_y0)
+
+        image2.set_extent((coords[0, 0, 0] + x0_slider.val - initial_x0,
+                           coords[-1, -1, 0] + x0_slider.val - initial_x0,
+                           coords[0, 0, 1] + y0_slider.val - initial_y0,
+                           coords[-1, -1, 1] + y0_slider.val - initial_y0))
+
+    x0_slider.on_changed(update_hinode_frame)
+    y0_slider.on_changed(update_hinode_frame)
+    deltax_slider.on_changed(update_hinode_frame)
+    deltay_slider.on_changed(update_hinode_frame)
+    theta_slider.on_changed(update_hinode_frame)
+
+    def reset(event):
+        range_slider.reset()
+
+        x0_slider.reset()
+        y0_slider.reset()
+        deltax_slider.reset()
+        deltay_slider.reset()
+        theta_slider.reset()
+
+    button_reset.on_clicked(reset)
+
+    # final_parameters = None
+
+    # def get_values(event):
+    #     global final_parameters
+    #     final_parameters = [x0_slider.val,
+    #                         y0_slider.val,
+    #                         deltax_slider.val,
+    #                         deltay_slider.val,
+    #                         theta_slider.val]
+    #     return final_parameters
+
+    def done(event):
+        plt.close()
+
+    # button_done.on_clicked(get_values)
+    button_done.on_clicked(done)
+
+    # TODO: figure out how to make button press return values
+    # while final_parameters is not None:
+    #     plt.show()
+    #
+    # return final_parameters
