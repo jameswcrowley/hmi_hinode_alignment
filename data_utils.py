@@ -646,20 +646,6 @@ def run(path_to_slits,
     else:
         bounds = bounds
 
-    # converged, parameters = minimize(p0,
-    #                                  slits_sorted,
-    #                                  path_to_slits,
-    #                                  all_HMI_data,
-    #                                  hmix,
-    #                                  hmiy,
-    #                                  hinode_B,
-    #                                  closest_index0,
-    #                                  sizes,
-    #                                  bounds)
-    # if verbose:
-    #     print('Initial Rough Alignment Complete.')
-    #     print('Estimate of parameters: ' + str(parameters))
-
     if gui:
         dx = (p0[0]) * u.arcsec
         dy = (p0[1]) * u.arcsec
@@ -706,6 +692,23 @@ def run(path_to_slits,
 
         print(50 * '-')
         print('Performing Final Fit')
+
+    # Code works better with an initial guess of parameters. If not using GUI, do a roach fit:
+    else:
+        converged, p0 = minimize(p0,
+                                 slits_sorted,
+                                 path_to_slits,
+                                 all_HMI_data,
+                                 hmix,
+                                 hmiy,
+                                 hinode_B,
+                                 closest_index0,
+                                 sizes,
+                                 bounds)
+
+    if verbose:
+        print('Initial Rough Alignment Complete.')
+        print('Estimate of parameters: ' + str(p0))
 
     converged, parameters = minimize(p0,
                                      slits_sorted,
@@ -782,7 +785,7 @@ def run(path_to_slits,
         output[:Nx, :Ny, 0] = finalx[:Nx, :Ny]
         output[:Nx, :Ny, 1] = finaly[:Nx, :Ny]
 
-        output = np.sort(output, axis=0)  # don't know if this matters but to be safe, sort coords / indices together
+        output = np.sort(output, axis=0)
 
         fits.writeto('coordinates.fits', output, overwrite=True)
     if save_params:
@@ -860,10 +863,11 @@ def show_gui(parameters,
                              facecolor='none',
                              ls='--')
 
-    ### Reset Button:
+    # Reset Button:
     resetax = fig.add_axes([0.6, 0.025, 0.1, 0.04])
     button_reset = Button(resetax, 'Reset', hovercolor='0.975')
 
+    # Done Button:
     doneax = fig.add_axes([0.8, 0.025, 0.1, 0.04])
     button_done = Button(doneax, 'Done', hovercolor='0.975')
 
@@ -927,7 +931,7 @@ def show_gui(parameters,
         orientation="horizontal"
     )
 
-    # WAY downsampling context image to make plotting faster:
+    # WAY down-sampling context image to make plotting faster:
     sub1.imshow(data[::15, ::15][::-1, ::-1],
                 vmin=-100,
                 vmax=100,
@@ -1015,5 +1019,4 @@ def show_gui(parameters,
 
     button_done.on_clicked(done)
 
-    # while final_parameters is not None:
     plt.show()
