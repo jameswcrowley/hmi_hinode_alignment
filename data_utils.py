@@ -693,7 +693,7 @@ def run(path_to_slits,
         print(50 * '-')
         print('Performing Final Fit')
 
-    # Code works better with an initial guess of parameters. If not using GUI, do a roach fit:
+    # Code works better with an initial guess of parameters. If not using GUI, do a rough fit:
     else:
         converged, p0 = minimize(p0,
                                  slits_sorted,
