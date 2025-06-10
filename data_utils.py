@@ -51,93 +51,79 @@ def get_coordinates(slits,
         a numpy array, of shape (N_slits, 2, sizey). HPC coordinates of each coordinate,
         (N_slits, x/y, position along slit)
     """
-    coordinates_counter = 0
-    coordinates = np.zeros((1, 2, sizey))
+    coordinates = np.zeros((len(slits), sizey, 2))
 
     for j, slit in enumerate(slits):
         temp_header = fits.open(path_to_slits + slit)[0].header
 
+        # Read in the necessary fits header keywords:
         temp_xcens = temp_header['XCEN']
         temp_ycens = temp_header['YCEN']
-        temp_ydelt = temp_header['CDELT2']
-
+        px = temp_header['CDELT2']
+        temp_slitidx = temp_header['SLITINDX']
         temp_p1 = temp_header['CROTA1']
 
-        index = i + j
+        p = temp_p1 + theta
+
+        # index = i + j
+        index = temp_slitidx
 
         temp_coordinates = get_slit_coords(index,
-                                           temp_xcens,
-                                           temp_ycens,
-                                           temp_xdelt,
-                                           temp_ydelt,
+                                           px,
                                            deltax,
                                            deltay,
-                                           temp_p1,
-                                           theta)
+                                           p)
 
-        if coordinates_counter == 0:
+        if j == 0:
             coordinates[0] = temp_coordinates
         else:
-            coordinates = np.vstack((coordinates, temp_coordinates))
-
-        coordinates_counter += 1
+            coordinates[j] = temp_coordinates
 
     return coordinates
 
 
 def get_slit_coords(index,
-                    xcen,
-                    ycen,
                     px,
-                    py,
                     deltax,
                     deltay,
-                    p1,
-                    theta=0):
+                    p=0):
+
     """
-    Get Slit Coordinates: returns the HPC coordinates of a single HINODE slit, by reading in the header and
-                          offseting it by the fitting parameters
+    Get Slit Coordinates: returns the HPC coordinates of a single HINODE slit specified by the header, can be stretched 
+    and rolled by fitting parametrs  
 
-
-
+    :param index:
+        a int, the index of the slit along the raster.
+        Used for determining coordinate of raster through coordinate transformation
     :param px:
         initial plate scale in x, nominally from header
-    :param py:
-        initial plate scale in y, nominally from header
     :param deltax:
         modification to plate scale in x, to be fitted for
     :param deltay:
         modification to plate scale in y, to be fitted for
-    :param index:
-        a int, the index of the slit along the raster.
-        Used for stretching the raster horizontally by the x-coordinate of each slit by xdelt * index
-    :param xcen:
-        a float, total offset of the center of the dataset by x arcsec
-    :param ycen:
-        a float, total offset of the center of the dataset by y arcsec
-    :param p1:
-        roll angle, from FITs header
-    :param theta:
-        correction to roll angle from FITs header
-
+    :param p:
+        roll angle, including both angle from header and theta offset angle  
+        
     :return slit coordinates:
         a numpy array of shape
     """
     x_slit_indices = np.ones(192) * 0.5
-    y_slit_indices = np.arange(-96, 96, 1)
+    y_slit_indices = np.arange(-96, 96, 1) * (px + deltay)
 
-    slit_coordinates_x = x_slit_indices * px + xcen
-    slit_coordinates_y = y_slit_indices * (py + deltay) + ycen
+    # roll slit by p:
+    slit_coordinates = np.zeros((2))
+    slit_coordinates[0] = x_slit_indices * np.cos(p * np.pi / 180) - y_slit_indices * np.sin(p * np.pi / 180)
+    slit_coordinates[1] = x_slit_indices * np.sin(p * np.pi / 180) + y_slit_indices * np.cos(p * np.pi / 180)
 
-    p = p1 + theta
+    # correct the roll in each slit for the offset from the first slit:
+    offset_from_first_slit = index * (deltax + px)
 
-    # roll corrected slit coords:
-    slit_coordinates = np.zeros((1, 2, 192))
-    slit_coordinates[0, 0] = slit_coordinates_x * np.cos(p * np.pi / 180) - slit_coordinates_y * np.sin(p * np.pi / 180)
-    slit_coordinates[0, 1] = slit_coordinates_x * np.sin(p * np.pi / 180) + slit_coordinates_y * np.cos(p * np.pi / 180)
+    x_offset_from_first_slit = offset_from_first_slit * np.cos(p * np.pi / 180)
+    y_offset_from_first_slit = offset_from_first_slit * np.sin(p * np.pi / 180)
 
-    slit_coordinates[0, 0] = slit_coordinates[0, 0] + index * px
-    slit_coordinates[0, 1] = slit_coordinates[0, 1]
+    slit_coordinates[0] += x_offset_from_first_slit
+    slit_coordinates[1] += y_offset_from_first_slit
+
     return slit_coordinates
 
 
