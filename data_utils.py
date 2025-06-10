@@ -59,7 +59,6 @@ def get_coordinates(slits,
 
         temp_xcens = temp_header['XCEN']
         temp_ycens = temp_header['YCEN']
-        temp_xdelt = temp_header['CDELT1']
         temp_ydelt = temp_header['CDELT2']
 
         temp_p1 = temp_header['CROTA1']
@@ -137,8 +136,8 @@ def get_slit_coords(index,
     slit_coordinates[0, 0] = slit_coordinates_x * np.cos(p * np.pi / 180) - slit_coordinates_y * np.sin(p * np.pi / 180)
     slit_coordinates[0, 1] = slit_coordinates_x * np.sin(p * np.pi / 180) + slit_coordinates_y * np.cos(p * np.pi / 180)
 
-    slit_coordinates[0, 0] = slit_coordinates[0, 0]
-    slit_coordinates[0, 1] = slit_coordinates[0, 1] + index * deltax
+    slit_coordinates[0, 0] = slit_coordinates[0, 0] + index * px
+    slit_coordinates[0, 1] = slit_coordinates[0, 1]
     return slit_coordinates
 
 
