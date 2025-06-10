@@ -21,7 +21,6 @@ import matplotlib.patches as patches
 
 
 def get_coordinates(slits,
-                    i,
                     deltax,
                     deltay,
                     path_to_slits,
@@ -33,65 +32,57 @@ def get_coordinates(slits,
 
     # TODO: fill these docustrings in:
 
-    :param i:
-    :param deltax:
-    :param deltay:
-    :param sizey:
     :param slits:
         a list of strings, names of slits to get coordinates from
+    :param deltax:
+    :param deltay:
     :param path_to_slits:
         a string, the absolute path to the folder where the Hinode fits slits are stored
+    :param sizey:
+        an int, number of pixels along slit
     :param theta:
         a float, roll angle correction to the p angle in the fits header (an angle offset to be minimized for later)
-
-        The roll angle is the only offset parameter I can't correct for after the map is created,
-        which is why it's passed in here. The other are corrected for later... might change this
 
     :return coordinates:
         a numpy array, of shape (N_slits, 2, sizey). HPC coordinates of each coordinate,
         (N_slits, x/y, position along slit)
     """
-    coordinates = np.zeros((len(slits), sizey, 2))
+    sizex = len(slits)
+
+    coordinates = np.zeros((sizex, sizey, 2))
 
     for j, slit in enumerate(slits):
         temp_header = fits.open(path_to_slits + slit)[0].header
 
         # Read in the necessary fits header keywords:
-        temp_xcens = temp_header['XCEN']
-        temp_ycens = temp_header['YCEN']
         px = temp_header['CDELT2']
-        temp_slitidx = temp_header['SLITINDX']
+        index = temp_header['SLITINDX']
         temp_p1 = temp_header['CROTA1']
 
         p = temp_p1 + theta
 
-        # index = i + j
-        index = temp_slitidx
+        temp_coordinates = get_slit_coordinates(index,
+                                                px,
+                                                deltax,
+                                                deltay,
+                                                p)
 
-        temp_coordinates = get_slit_coords(index,
-                                           px,
-                                           deltax,
-                                           deltay,
-                                           p)
-
-        if j == 0:
-            coordinates[0] = temp_coordinates
-        else:
-            coordinates[j] = temp_coordinates
+        coordinates[j] = temp_coordinates
 
     return coordinates
 
 
-def get_slit_coords(index,
-                    px,
-                    deltax,
-                    deltay,
-                    p=0):
-
+def get_slit_coordinates(index,
+                         px,
+                         deltax,
+                         deltay,
+                         p=0):
     """
     Get Slit Coordinates: returns the HPC coordinates of a single HINODE slit specified by the header, can be stretched 
     and rolled by fitting parametrs  
 
+    :param sizey:
+        int, number of pixels along slit
     :param index:
         a int, the index of the slit along the raster.
         Used for determining coordinate of raster through coordinate transformation
@@ -111,9 +102,9 @@ def get_slit_coords(index,
     y_slit_indices = np.arange(-96, 96, 1) * (px + deltay)
 
     # roll slit by p:
-    slit_coordinates = np.zeros((2))
-    slit_coordinates[0] = x_slit_indices * np.cos(p * np.pi / 180) - y_slit_indices * np.sin(p * np.pi / 180)
-    slit_coordinates[1] = x_slit_indices * np.sin(p * np.pi / 180) + y_slit_indices * np.cos(p * np.pi / 180)
+    slit_coordinates = np.zeros((192, 2))
+    slit_coordinates[:, 0] = x_slit_indices * np.cos(p * np.pi / 180) - y_slit_indices * np.sin(p * np.pi / 180)
+    slit_coordinates[:, 1] = x_slit_indices * np.sin(p * np.pi / 180) + y_slit_indices * np.cos(p * np.pi / 180)
 
     # correct the roll in each slit for the offset from the first slit:
     offset_from_first_slit = index * (deltax + px)
@@ -121,8 +112,8 @@ def get_slit_coords(index,
     x_offset_from_first_slit = offset_from_first_slit * np.cos(p * np.pi / 180)
     y_offset_from_first_slit = offset_from_first_slit * np.sin(p * np.pi / 180)
 
-    slit_coordinates[0] += x_offset_from_first_slit
-    slit_coordinates[1] += y_offset_from_first_slit
+    slit_coordinates[:, 0] += x_offset_from_first_slit
+    slit_coordinates[:, 1] += y_offset_from_first_slit
 
     return slit_coordinates
 
@@ -178,7 +169,6 @@ def interpolate_section(parameters,
     slits_subset = slits_sorted[slit_indices[0]:slit_indices[-1]]
 
     coordinates = get_coordinates(slits_subset,
-                                  slit_indices[0],
                                   deltax,
                                   deltay,
                                   path_to_slits,
@@ -186,8 +176,8 @@ def interpolate_section(parameters,
                                   theta)
 
     # unpacking coordinates into x and y arrays
-    hinodex = coordinates[:, 0, :] * u.arcsec
-    hinodey = coordinates[:, 1, :] * u.arcsec
+    hinodex = coordinates[:, :, 0] * u.arcsec
+    hinodey = coordinates[:, :, 1] * u.arcsec
 
     # pulling "best guess" corners of square HMI, size of Hinode raster, to define as low (original resolution) HMI data
     corner1_arcsec = (hinodex[0, 0] + dx, hinodey[0, 0] + dy)
@@ -632,26 +622,23 @@ def run(path_to_slits,
         bounds = bounds
 
     if gui:
-        dx = (p0[0]) * u.arcsec
-        dy = (p0[1]) * u.arcsec
-
+        xcen = (p0[0]) * u.arcsec
+        ycen = (p0[1]) * u.arcsec
         deltax = p0[2]
         deltay = p0[3]
-
         theta = p0[4]
 
         initial_coords = get_coordinates(slits=slits,
-                                         i=0,
                                          deltax=deltax,
                                          deltay=deltay,
                                          path_to_slits=path_to_slits,
                                          sizey=sizey,
                                          theta=theta)
-        initialx = initial_coords[:, 0, :]
-        initialy = initial_coords[:, 1, :]
+        initialx = initial_coords[:, :, 0]
+        initialy = initial_coords[:, :, 1]
 
-        initialx = (initialx * (1 - deltax)) + dx.value
-        initialy = (initialy * (1 - deltay)) + dy.value
+        initialx = initialx + xcen.value
+        initialy = initialy + ycen.value
 
         Nx = hinode_B.shape[0]
         Ny = hinode_B.shape[1]
@@ -749,18 +736,14 @@ def run(path_to_slits,
         theta = parameters[4]
 
         final_coordinates = get_coordinates(slits=slits,
-                                            i=0,
                                             deltax=deltax,
                                             deltay=deltay,
                                             path_to_slits=path_to_slits,
                                             sizey=sizey,
                                             theta=theta)
 
-        finalx = final_coordinates[:, 0, :]
-        finaly = final_coordinates[:, 1, :]
-
-        finalx = (finalx * (1 - deltax)) + dx.value
-        finaly = (finaly * (1 - deltay)) + dy.value
+        finalx = final_coordinates[:, :, 0]
+        finaly = final_coordinates[:, :, 1]
 
         Nx = hinode_B.shape[0]
         Ny = hinode_B.shape[1]
@@ -834,7 +817,8 @@ def show_gui(parameters,
         """
         AAAA.CC
         BBBB.CC
-        """)
+        """,
+        figsize=(12, 8))
 
     sub1 = axd['A']
     sub2 = axd['B']
@@ -870,8 +854,8 @@ def show_gui(parameters,
     x0_slider = Slider(
         ax=axamp,
         label=r"$x_0$",
-        valmin=initial_x0 - 80,
-        valmax=initial_x0 + 80,
+        valmin=initial_x0 - 100,
+        valmax=initial_x0 + 100,
         valinit=initial_x0,
         orientation="horizontal"
     )
@@ -880,8 +864,8 @@ def show_gui(parameters,
     y0_slider = Slider(
         ax=axamp,
         label=r"$y_0$",
-        valmin=initial_y0 - 80,
-        valmax=initial_y0 + 80,
+        valmin=initial_y0 - 100,
+        valmax=initial_y0 + 100,
         valinit=initial_y0,
         orientation="horizontal"
     )
@@ -890,8 +874,8 @@ def show_gui(parameters,
     deltax_slider = Slider(
         ax=axamp,
         label=r"$\delta_x$",
-        valmin=initial_deltax - 0.5,
-        valmax=initial_deltax + 0.5,
+        valmin=initial_deltax - 0.1,
+        valmax=initial_deltax + 0.1,
         valinit=initial_deltax,
         orientation="horizontal"
     )
@@ -900,8 +884,8 @@ def show_gui(parameters,
     deltay_slider = Slider(
         ax=axamp,
         label=r"$\delta_y$",
-        valmin=initial_deltay - 0.5,
-        valmax=initial_deltay + 0.5,
+        valmin=initial_deltay - 0.1,
+        valmax=initial_deltay + 0.1,
         valinit=initial_deltay,
         orientation="horizontal"
     )
@@ -913,16 +897,37 @@ def show_gui(parameters,
         valmin=initial_theta - 10,
         valmax=initial_theta + 10,
         valinit=initial_theta,
-        orientation="horizontal"
+        orientation="horizontal",
+        track_color='r',
+    )
+
+    axamp = fig.add_axes([0.15, 0.6, 0.01, 0.3])
+    hmi_clim_slider = Slider(
+        ax=axamp,
+        label="hmi clim",
+        valmin=0,
+        valmax=300,
+        valinit=100,
+        orientation="vertical"
+    )
+
+    axamp = fig.add_axes([0.15, 0.15, 0.01, 0.3])
+    sp_clim_slider = Slider(
+        ax=axamp,
+        label="SP clim",
+        valmin=0,
+        valmax=300,
+        valinit=100,
+        orientation="vertical"
     )
 
     # WAY down-sampling context image to make plotting faster:
-    sub1.imshow(data[::15, ::15][::-1, ::-1],
-                vmin=-100,
-                vmax=100,
-                cmap='gray',
-                origin='lower',
-                extent=[hmix[-1, -1], hmix[0, 0], hmiy[-1, -1], hmiy[0, 0]])
+    hmi_image_full = sub1.imshow(data[::15, ::15][::-1, ::-1],
+                                 vmin=-100,
+                                 vmax=100,
+                                 cmap='gray',
+                                 origin='lower',
+                                 extent=[hmix[-1, -1], hmix[0, 0], hmiy[-1, -1], hmiy[0, 0]])
     sub2.set_ylim(hmix[-1, -1], hmix[0, 0])
     sub2.set_xlim(hmiy[-1, -1], hmiy[0, 0])
 
@@ -931,12 +936,12 @@ def show_gui(parameters,
 
     sub1.add_patch(rect)
 
-    sub2.imshow(data[:, :][::-1, ::-1],
-                vmin=-50,
-                vmax=50,
-                cmap='gray',
-                origin='lower',
-                extent=[hmix[-1, -1], hmix[0, 0], hmiy[-1, -1], hmiy[0, 0]])
+    hmi_image_subset = sub2.imshow(data[:, :][::-1, ::-1],
+                                   vmin=-50,
+                                   vmax=50,
+                                   cmap='gray',
+                                   origin='lower',
+                                   extent=[hmix[-1, -1], hmix[0, 0], hmiy[-1, -1], hmiy[0, 0]])
     sub2.set_xlim(middlex - initial_width / 2, middlex + initial_width / 2)
     sub2.set_ylim(middley - initial_width / 2, middley + initial_width / 2)
 
@@ -962,25 +967,37 @@ def show_gui(parameters,
         rect.set_y(middley + y0_slider.val - initial_y0 - range_slider.val / 2)
 
         fig.canvas.draw_idle()
+        hmi_image_full.set_clim((-hmi_clim_slider.val / 2, hmi_clim_slider.val / 2))
 
     range_slider.on_changed(update_hmi_frame)
     x0_slider.on_changed(update_hmi_frame)
     y0_slider.on_changed(update_hmi_frame)
 
+    hmi_clim_slider.on_changed(update_hmi_frame)
+
     def update_hinode_frame(val):
         image1.set_data(middlex + x0_slider.val - initial_x0,
                         middley + y0_slider.val - initial_y0)
 
-        image2.set_extent((coords[0, 0, 0] + x0_slider.val - initial_x0,
-                           coords[-1, -1, 0] + x0_slider.val - initial_x0,
-                           coords[0, 0, 1] + y0_slider.val - initial_y0,
-                           coords[-1, -1, 1] + y0_slider.val - initial_y0))
+        width_x = coords[-1, -1, 0] - coords[0, 0, 0]
+        width_y = coords[-1, -1, 1] - coords[0, 0, 1]
+
+        image2.set_extent((coords[0, 0, 0] + (x0_slider.val - initial_x0) - width_x * deltax_slider.val,
+                           coords[-1, -1, 0] + (x0_slider.val - initial_x0) + width_x * deltax_slider.val,
+                           coords[0, 0, 1] + (y0_slider.val - initial_y0) - width_y * deltay_slider.val,
+                           coords[-1, -1, 1] + (y0_slider.val - initial_y0) + width_y * deltay_slider.val))
+
+        hmi_image_subset.set_clim((-hmi_clim_slider.val / 2, hmi_clim_slider.val / 2))
+        image2.set_clim((-sp_clim_slider.val / 2, sp_clim_slider.val / 2))
 
     x0_slider.on_changed(update_hinode_frame)
     y0_slider.on_changed(update_hinode_frame)
     deltax_slider.on_changed(update_hinode_frame)
     deltay_slider.on_changed(update_hinode_frame)
     theta_slider.on_changed(update_hinode_frame)
+
+    hmi_clim_slider.on_changed(update_hinode_frame)
+    sp_clim_slider.on_changed(update_hinode_frame)
 
     def reset(event):
         range_slider.reset()
@@ -990,6 +1007,8 @@ def show_gui(parameters,
         deltax_slider.reset()
         deltay_slider.reset()
         theta_slider.reset()
+        hmi_clim_slider.reset()
+        sp_clim_slider.reset()
 
     button_reset.on_clicked(reset)
 
