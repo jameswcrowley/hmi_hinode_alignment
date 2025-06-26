@@ -51,15 +51,15 @@ def get_coordinates(slits,
 
     coordinates = np.zeros((sizex, sizey, 2))
 
+    first_header = fits.open(path_to_slits + slits[0])[0].header
+    px = first_header['CDELT2']
+    p1 = first_header['CROTA1']
+
+    p = p1 + theta
+
     for j, slit in enumerate(slits):
         temp_header = fits.open(path_to_slits + slit)[0].header
-
-        # Read in the necessary fits header keywords:
-        px = temp_header['CDELT2']
         index = temp_header['SLITINDX']
-        temp_p1 = temp_header['CROTA1']
-
-        p = temp_p1 + theta
 
         temp_coordinates = get_slit_coordinates(index,
                                                 px,
@@ -176,12 +176,12 @@ def interpolate_section(parameters,
                                   theta)
 
     # unpacking coordinates into x and y arrays
-    hinodex = coordinates[:, :, 0] * u.arcsec
-    hinodey = coordinates[:, :, 1] * u.arcsec
+    hinodex = coordinates[:, :, 0] * u.arcsec + dx
+    hinodey = coordinates[:, :, 1] * u.arcsec + dy
 
     # pulling "best guess" corners of square HMI, size of Hinode raster, to define as low (original resolution) HMI data
-    corner1_arcsec = (hinodex[0, 0] + dx, hinodey[0, 0] + dy)
-    corner2_arcsec = (hinodex[-1, -1] + dx, hinodey[-1, -1] + dy)
+    corner1_arcsec = (hinodex[0, 0],   hinodey[0, 0])
+    corner2_arcsec = (hinodex[-1, -1], hinodey[-1, -1])
 
     # pulling the closest HMI pixel to each corner, in x and y
     hmi_corner1_x_index = np.argmin(abs(corner1_arcsec[0] - hmix[0, :]))
@@ -195,9 +195,9 @@ def interpolate_section(parameters,
 
     # pulling a regular, rectangular grid covering the HINODE raster from the corners above:
     hmi_x_coords = hmiy[hmi_corner2_x_index - delta:hmi_corner1_x_index + delta, hmi_corner2_y_index][
-                   ::-1].value - dx.value
+                   ::-1].value
     hmi_y_coords = hmix[hmi_corner2_x_index, hmi_corner2_y_index - delta:hmi_corner1_y_index + delta][
-                   ::-1].value - dy.value
+                   ::-1].value
 
     f = interpolate.RectBivariateSpline(hmi_y_coords,
                                         hmi_x_coords,
@@ -411,7 +411,7 @@ def assemble_and_compare_interpolated_HMI(parameters,
         S0 = np.zeros_like(hinode_B)
         S0[abs(hinode_B) > 80] = 1
 
-        S1 = gf(S0, sigma=0.7)
+        S1 = gf(S0, sigma=0.8)
 
         S2 = np.zeros_like(S1)
         S2[S1 > 0.7] = 1
@@ -531,233 +531,10 @@ def minimize(initial_guess,
                                  closest_index,
                                  sizes,
                                  True),
-                           bounds=bounds)
+                           bounds=bounds,
+                           tol=0.00001)
 
     return x.success, x.x
-
-
-def run(path_to_slits,
-        hinode_B,
-        p0=None,
-        bounds=None,
-        path_to_sunpy='/Users/jamescrowley/sunpy/',
-        plot=True,
-        save_coords=False,
-        save_params=False,
-        verbose=True,
-        gui=True):
-    """
-    Run:
-        I want this to be the funciton which calls all the others to run the alignment, almost like a main
-
-    :param path_to_slits:
-        a string, path to the folder where the unpacked CSAC slits are saved.
-
-    :param hinode_B:
-        a numpy array of signed hinode magnetic field to be aligned. Should be (Nx, Ny) in shape.
-
-    :param p0:
-        initial guess for parameters.
-
-    :param bounds:
-        a list of floats, initial bounds around which to search for parameters. Defualts to none and use wide bounds.
-        Update if you want to use tighter bounds in parameter search.
-
-    :param path_to_sunpy:
-        a string, path to where sunpy data is to be saved.
-
-    :param plot:
-        bool, whether to plot the output image. default is .
-
-    :param save_coords:
-        bool, whether to save HPC coords. Saves as a fits file wherever script is run, format is
-        [i_index, j_index, 2], i.e. [:, :, 0] is HPC x and [:, :, 1] is HPC y.
-
-    :param save_params:
-        bool, whether to save fitted parameters. Saves as a fits file wherever script is run, format is
-        [x_cen, y_cen, p_x, p_y, theta].
-
-    :param verbose:
-        bool, whether to output progress messages to console. Defualt is true.
-
-    :param gui:
-        a bool, whether to use GUI in between initial and final fit to roughly vizualize alignment
-
-    :return: 
-    """
-
-    # read names of slits:
-    slits = os.listdir(path_to_slits)
-    slits_sorted = sorted(slits)  # sort in time via name - this may not be necessary, but just to make sure
-    N_slits = len(slits_sorted)
-
-    sizex = fits.open(path_to_slits + '/' + sorted(os.listdir(path_to_slits))[-1])[0].header['SLITINDX'] + 1
-    sizey = fits.open(path_to_slits + '/' + sorted(os.listdir(path_to_slits))[-1])[0].data.shape[1]
-
-    sizes = (sizex, sizey)
-
-    if verbose:
-        print('Fits slits read in. Number of slits: ' + str(N_slits))
-        print('Size of dataset: ' + str(sizey) + ' x ' + str(sizex))
-
-    if hinode_B is None:
-        hinode_B = create_psuedo_B(sizes, path_to_slits, slits_sorted)
-
-    # download and read-in all the needed HMI data:
-    closest_index = fetch_data(path_to_slits, path_to_sunpy, verbose)
-    all_HMI_data, hmix, hmiy = read_in_HMI()
-
-    if verbose:
-        print('Fido successfully downloaded HMI data.')
-
-        print(50 * '-')
-        print('Performing Initial Rough Alignment')
-
-    if p0 is None:
-        p0 = [14, 34, -8.52e-03, 3.72e-04, 2.5]
-    closest_index0 = N_slits * [1]
-    if bounds is None:
-        bounds = [(-40, 40), (-40, 40), (0.95, 1.05), (0.95, 1.05), (-4, 4)]
-    else:
-        bounds = bounds
-
-    if gui:
-        xcen = (p0[0]) * u.arcsec
-        ycen = (p0[1]) * u.arcsec
-        deltax = p0[2]
-        deltay = p0[3]
-        theta = p0[4]
-
-        initial_coords = get_coordinates(slits=slits,
-                                         deltax=deltax,
-                                         deltay=deltay,
-                                         path_to_slits=path_to_slits,
-                                         sizey=sizey,
-                                         theta=theta)
-        initialx = initial_coords[:, :, 0]
-        initialy = initial_coords[:, :, 1]
-
-        initialx = initialx + xcen.value
-        initialy = initialy + ycen.value
-
-        Nx = hinode_B.shape[0]
-        Ny = hinode_B.shape[1]
-
-        output = np.zeros((initialx.shape[0], initialx.shape[1], 2))
-
-        output[:Nx, :Ny, 0] = initialx[:Nx, :Ny]
-        output[:Nx, :Ny, 1] = initialy[:Nx, :Ny]
-
-        output = np.sort(output, axis=0)
-
-        show_gui(p0,
-                 all_HMI_data[:, :, 0],
-                 hmix.value,
-                 hmiy.value,
-                 output,
-                 hinode_B)
-
-        with open('parameters_text.txt', 'r') as file:
-            content = file.read()
-            numbers_str = content.split()  # Split by any whitespace
-            p0 = [float(num) for num in numbers_str]
-
-        print(50 * '-')
-        print('Performing Final Fit')
-
-    # Code works better with an initial guess of parameters. If not using GUI, do a rough fit:
-    else:
-        converged, p0 = minimize(p0,
-                                 slits_sorted,
-                                 path_to_slits,
-                                 all_HMI_data,
-                                 hmix,
-                                 hmiy,
-                                 hinode_B,
-                                 closest_index0,
-                                 sizes,
-                                 bounds)
-
-    if verbose:
-        print('Initial Rough Alignment Complete.')
-        print('Estimate of parameters: ' + str(p0))
-
-    converged, parameters = minimize(p0,
-                                     slits_sorted,
-                                     path_to_slits,
-                                     all_HMI_data,
-                                     hmix,
-                                     hmiy,
-                                     hinode_B,
-                                     closest_index,
-                                     sizes,
-                                     bounds)
-
-    if verbose:
-        print('Minimized: ' + str(converged))
-        print('Final Parameters: ' + str(parameters))
-
-    if not converged:
-        raise Exception('Failed to Solve. Exiting.')
-
-    if plot:
-        # after converged, vizualize it:
-        if verbose:
-            print(50 * '-')
-            print('Vizualizing Final Solution:')
-        final_HMI = assemble_and_compare_interpolated_HMI(parameters,
-                                                          slits_sorted,
-                                                          path_to_slits,
-                                                          all_HMI_data,
-                                                          hmix,
-                                                          hmiy,
-                                                          hinode_B,
-                                                          closest_index,
-                                                          sizes,
-                                                          False)
-
-        plot_and_viz_compare(hinode_B, final_HMI)
-
-    all_HMI_files = os.listdir(path_to_sunpy + '/data/HMI/align/')
-
-    # remove the HMI maps
-    for file in all_HMI_files:
-        os.remove(path_to_sunpy + '/data/HMI/align/' + file)
-
-    # save the coordinate, and any other requested information
-    if save_coords:  # if saving, create the final coordinate arrays.
-
-        dx = (parameters[0]) * u.arcsec
-        dy = (parameters[1]) * u.arcsec
-
-        deltax = parameters[2]
-        deltay = parameters[3]
-
-        theta = parameters[4]
-
-        final_coordinates = get_coordinates(slits=slits,
-                                            deltax=deltax,
-                                            deltay=deltay,
-                                            path_to_slits=path_to_slits,
-                                            sizey=sizey,
-                                            theta=theta)
-
-        finalx = final_coordinates[:, :, 0]
-        finaly = final_coordinates[:, :, 1]
-
-        Nx = hinode_B.shape[0]
-        Ny = hinode_B.shape[1]
-
-        output = np.zeros((finalx.shape[0], finalx.shape[1], 2))
-
-        output[:Nx, :Ny, 0] = finalx[:Nx, :Ny]
-        output[:Nx, :Ny, 1] = finaly[:Nx, :Ny]
-
-        output = np.sort(output, axis=0)
-
-        fits.writeto('coordinates.fits', output, overwrite=True)
-    if save_params:
-        fits.writeto('parameters.fits', parameters, overwrite=True)
 
 
 def create_psuedo_B(sizes,
@@ -823,14 +600,6 @@ def show_gui(parameters,
     sub1 = axd['A']
     sub2 = axd['B']
     sub3 = axd['C']
-
-    rect = patches.Rectangle((middlex + initial_x0 - initial_width / 2, middley + initial_y0 - initial_width / 2),
-                             initial_width,
-                             initial_width,
-                             linewidth=1,
-                             edgecolor='r',
-                             facecolor='none',
-                             ls='--')
 
     # Reset Button:
     resetax = fig.add_axes([0.6, 0.025, 0.1, 0.04])
@@ -934,6 +703,14 @@ def show_gui(parameters,
     image1 = sub1.plot(middlex + x0_slider.val - initial_x0,
                        middley + y0_slider.val - initial_y0, marker='x', ms=10, c='r')[0]
 
+    rect = patches.Rectangle((middlex - initial_width / 2, middley - initial_width / 2),
+                             initial_width,
+                             initial_width,
+                             linewidth=1,
+                             edgecolor='r',
+                             facecolor='none',
+                             ls='--')
+
     sub1.add_patch(rect)
 
     hmi_image_subset = sub2.imshow(data[:, :][::-1, ::-1],
@@ -1024,3 +801,224 @@ def show_gui(parameters,
     button_done.on_clicked(done)
 
     plt.show()
+
+
+def run(path_to_slits,
+        hinode_B,
+        p0=None,
+        bounds=None,
+        path_to_sunpy='/Users/jamescrowley/sunpy/',
+        plot=True,
+        save_coords=False,
+        save_params=False,
+        verbose=True,
+        gui=True,
+        remove_HMI=True):
+    """
+    Run:
+        I want this to be the function which calls all the others to run the alignment, almost like a main
+
+    :param path_to_slits:
+        a string, path to the folder where the unpacked CSAC slits are saved.
+    :param hinode_B:
+        a numpy array of signed hinode magnetic field to be aligned. Should be (Nx, Ny) in shape.
+    :param p0:
+        initial guess for parameters.
+    :param bounds:
+        a list of floats, initial bounds around which to search for parameters. Defualts to none and use wide bounds.
+        Update if you want to use tighter bounds in parameter search.
+    :param path_to_sunpy:
+        a string, path to where sunpy data is to be saved.
+    :param plot:
+        bool, whether to plot the output image. default is .
+    :param save_coords:
+        bool, whether to save HPC coords. Saves as a fits file wherever script is run, format is
+        [i_index, j_index, 2], i.e. [:, :, 0] is HPC x and [:, :, 1] is HPC y.
+    :param save_params:
+        bool, whether to save fitted parameters. Saves as a fits file wherever script is run, format is
+        [x_cen, y_cen, p_x, p_y, theta].
+    :param verbose:
+        bool, whether to output progress messages to console. Defualt is true.
+    :param gui:
+        a bool, whether to use GUI in between initial and final fit to roughly vizualize alignment
+    :param remove_HMI:
+
+
+    :return: 
+    """
+
+    # read names of slits:
+    slits = os.listdir(path_to_slits)
+    slits_sorted = sorted(slits)  # sort in time via name - this may not be necessary, but just to make sure
+    N_slits = len(slits_sorted)
+
+    sizex = fits.open(path_to_slits + '/' + sorted(os.listdir(path_to_slits))[-1])[0].header['SLITINDX'] + 1
+    sizey = fits.open(path_to_slits + '/' + sorted(os.listdir(path_to_slits))[-1])[0].data.shape[1]
+
+    sizes = (sizex, sizey)
+
+    if verbose:
+        print('Fits slits read in. Number of slits: ' + str(N_slits))
+        print('Size of dataset: ' + str(sizey) + ' x ' + str(sizex))
+
+    if hinode_B is None:
+        hinode_B = create_psuedo_B(sizes, path_to_slits, slits_sorted)
+
+    # download and read-in all the needed HMI data:
+    closest_index = fetch_data(path_to_slits, path_to_sunpy, verbose)
+    all_HMI_data, hmix, hmiy = read_in_HMI()
+
+    if verbose:
+        print('Fido successfully downloaded HMI data.')
+
+        print(50 * '-')
+        print('Performing Initial Rough Alignment')
+
+    initial_xcen = fits.open(path_to_slits + '/' + sorted(os.listdir(path_to_slits))[0])[0].header['XCEN']
+    initial_ycen = fits.open(path_to_slits + '/' + sorted(os.listdir(path_to_slits))[0])[0].header['YCEN']
+
+    # p0 = [initial_xcen, initial_ycen, 0, 0, 2.5]
+
+    if bounds is None:
+        bounds = [(-40, 40), (-40, 40), (-0.2, 0.2), (-0.2, 0.2), (-4, 4)]
+    else:
+        bounds = bounds
+
+    if gui:
+        xcen = (p0[0]) * u.arcsec
+        ycen = (p0[1]) * u.arcsec
+        deltax = p0[2]
+        deltay = p0[3]
+        theta = p0[4]
+
+        initial_coords = get_coordinates(slits=slits,
+                                         deltax=deltax,
+                                         deltay=deltay,
+                                         path_to_slits=path_to_slits,
+                                         sizey=sizey,
+                                         theta=theta)
+        initialx = initial_coords[:, :, 0]
+        initialy = initial_coords[:, :, 1]
+
+        initialx = initialx + xcen.value
+        initialy = initialy + ycen.value
+
+        Nx = hinode_B.shape[0]
+        Ny = hinode_B.shape[1]
+
+        output = np.zeros((initialx.shape[0], initialx.shape[1], 2))
+
+        output[:Nx, :Ny, 0] = initialx[:Nx, :Ny]
+        output[:Nx, :Ny, 1] = initialy[:Nx, :Ny]
+
+        output = np.sort(output, axis=0)
+
+        show_gui(p0,
+                 all_HMI_data[:, :, 0],
+                 hmix.value,
+                 hmiy.value,
+                 output,
+                 hinode_B)
+
+        with open('parameters_text.txt', 'r') as file:
+            content = file.read()
+            numbers_str = content.split()  # Split by any whitespace
+            p0 = [float(num) for num in numbers_str]
+
+        if verbose:
+            print(50 * '-')
+            print('Performing Final Fit')
+
+    # Code works better with an initial guess of parameters. If not using GUI, do a rough fit:
+    else:
+        temp_bounds = [(-40, 40), (-40, 40), (p0[2] - 0.05, p0[2] + 0.05), (p0[3] - 0.05, p0[3] + 0.05), (p0[4], p0[4])]
+        converged, p0 = minimize(p0,
+                                 slits_sorted,
+                                 path_to_slits,
+                                 all_HMI_data,
+                                 hmix,
+                                 hmiy,
+                                 hinode_B,
+                                 closest_index,
+                                 sizes,
+                                 temp_bounds)
+
+    if verbose:
+        print('Initial Rough Alignment Complete.')
+        print('Estimate of parameters: ' + str(p0))
+        print(50 * '-')
+
+    converged, parameters = minimize(p0,
+                                     slits_sorted,
+                                     path_to_slits,
+                                     all_HMI_data,
+                                     hmix,
+                                     hmiy,
+                                     hinode_B,
+                                     closest_index,
+                                     sizes,
+                                     bounds)
+
+    if verbose:
+        print('Minimized: ' + str(converged))
+        print('Final Parameters: ' + str(parameters))
+
+    if not converged:
+        raise Exception('Failed to Solve. Exiting.')
+
+    if plot:
+        # after converged, vizualize it:
+        if verbose:
+            print(50 * '-')
+            print('Vizualizing Final Solution:')
+        final_HMI = assemble_and_compare_interpolated_HMI(parameters,
+                                                          slits_sorted,
+                                                          path_to_slits,
+                                                          all_HMI_data,
+                                                          hmix,
+                                                          hmiy,
+                                                          hinode_B,
+                                                          closest_index,
+                                                          sizes,
+                                                          False)
+
+        plot_and_viz_compare(hinode_B, final_HMI)
+
+    all_HMI_files = os.listdir(path_to_sunpy + '/data/HMI/align/')
+
+    # remove the HMI maps
+    if remove_HMI:
+        for file in all_HMI_files:
+            os.remove(path_to_sunpy + '/data/HMI/align/' + file)
+
+    # save the coordinate, and any other requested information
+    if save_coords:  # if saving, create the final coordinate arrays.
+
+        deltax = parameters[2]
+        deltay = parameters[3]
+
+        theta = parameters[4]
+
+        final_coordinates = get_coordinates(slits=slits,
+                                            deltax=deltax,
+                                            deltay=deltay,
+                                            path_to_slits=path_to_slits,
+                                            sizey=sizey,
+                                            theta=theta)
+
+        finalx = final_coordinates[:, :, 0] + parameters[0]
+        finaly = final_coordinates[:, :, 1] + parameters[1]
+
+        Nx = hinode_B.shape[0]
+        Ny = hinode_B.shape[1]
+
+        output = np.zeros((finalx.shape[0], finalx.shape[1], 2))
+
+        output[:Nx, :Ny, 0] = finalx[:Nx, :Ny]
+        output[:Nx, :Ny, 1] = finaly[:Nx, :Ny]
+
+        output = np.sort(output, axis=0)
+
+        fits.writeto('coordinates.fits', output, overwrite=True)
+    if save_params:
+        fits.writeto('parameters.fits', parameters, overwrite=True)
