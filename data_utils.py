@@ -859,8 +859,6 @@ def run(path_to_slits,
 
     # download and read-in all the needed HMI data:
     closest_index, obstime = fetch_data(path_to_slits, path_to_sunpy, verbose)
-    # TESTING july 7
-    closest_index = [closest_index[sizex // 2]] * sizex
     all_HMI_data, hmix, hmiy, hmi_wcs = read_in_HMI()
 
     if verbose:
@@ -979,14 +977,13 @@ def run(path_to_slits,
 
         plot_and_viz_compare(hinode_B, final_HMI)
 
-    all_HMI_files = os.listdir(path_to_sunpy + '/data/HMI/align/')
-
     # remove the HMI maps
     if remove_HMI:
+        all_HMI_files = os.listdir(path_to_sunpy + '/data/HMI/align/')
         for file in all_HMI_files:
             os.remove(path_to_sunpy + '/data/HMI/align/' + file)
 
-    # save the coordinate, and any other requested information
+    # save the coordinates and parameters
     if save_coords:  # if saving, create the final coordinate arrays.
 
         deltax = parameters[2]
