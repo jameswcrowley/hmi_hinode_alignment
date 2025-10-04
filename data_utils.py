@@ -407,8 +407,8 @@ def assemble_and_compare_interpolated_HMI(parameters,
                                      frame=frame_hpc)
 
                 interpolated_HMI[:, index1:index2][::-1, :] = interpolate_sunpy(coord_hpc,
-                                                                                   hmi_image,
-                                                                                   hmi_wcs).T
+                                                                                hmi_image,
+                                                                                hmi_wcs).T
     if flag:
         S0 = np.zeros_like(hinode_B)
         S0[abs(hinode_B) > 80] = 1
@@ -528,6 +528,119 @@ def assemble_and_compare_interpolated_HMI_by_slit(parameters,
         return interpolated_HMI[::-1]
 
 
+def assemble_and_compare_interpolated_HMI_by_sections(parameters,
+                                                      slits_sorted,
+                                                      path_to_slits,
+                                                      all_HMI_data,
+                                                      hmi_wcs,
+                                                      hinode_B,
+                                                      closest_index,
+                                                      slit_indexes,
+                                                      sizes,
+                                                      obstime,
+                                                      flag):
+    """
+    Assemble Interpolated HMI (by sections):
+        Calls interpolate multiple times, for each HMI 45s magnetogram closest to at least one of the Hinode fits slits
+
+        Finally, this compares the interpolated map to the inverted Hinode B, and produces a psuedo-chi squared.
+        The minimize function then finds the parameter set to minimize the psuedo-chi squared.
+
+        Was originally just going to assemble HMI, but in order to minimize parameters it's important that the assembly
+        and the comparison are done in the same function.
+
+
+
+    :param parameters:
+        the set of 5 parameters to offset the Hinode dataset by
+    :param slits_sorted:
+        a list of strings, names of the slits in the Hinode observation
+    :param path_to_slits:
+        a string, absolute path to where the slits are saved
+    :param all_HMI_data:
+        the stacked array of all HMI data covering the observations
+    :param hmix:
+        hmi x coordinates, in arcsec
+    :param hmiy:
+        hmi y coordinates, in arcsec
+    :param hinode_B:
+        magnetic
+    :param closest_index:
+        a list of the index of the closest HMI dataset to each slit
+    :param slit_indexes:
+
+    :param sizes:
+
+    :param flag:
+        true: return pseudo-chi-squared (for minimizing parameters)
+        false: return assembled map (for visualizing once minimization is done)
+
+    :return interpolated_HMI:
+        The final interpolated HMI image, created from multiple HMI 45s observations
+    """
+
+    interpolated_HMI = np.zeros((sizes[0], sizes[1]))
+
+    where_slits_missing = (np.where((np.diff(slit_indexes) - 1) != 0)[0] + 1)
+    end = len(slit_indexes)
+
+    sections_to_fill_indexes = np.concatenate((where_slits_missing, [end]), axis=0)
+
+    counter = 0
+    for i, section_i in enumerate(sections_to_fill_indexes):
+        if i == 0:
+            section_start = 0
+        else:
+            section_start = sections_to_fill_indexes[i - 1]
+        section_end = section_i - 1
+        if closest_index[i] == -1:
+            pass
+        else:  # there are HMI maps corresponding to these slits
+
+            coords_section = get_coordinates(slits_sorted[section_start:section_end],
+                                             parameters[2],
+                                             parameters[3],
+                                             path_to_slits,
+                                             sizes[1],
+                                             parameters[4])
+
+            coords_section[..., 0] += parameters[0]
+            coords_section[..., 1] += parameters[1]
+            coords_section = np.sort(coords_section, axis=0)
+
+            hmi_image = all_HMI_data[..., closest_index[counter]]
+            hmi_wcs = hmi_wcs
+
+            mean_time = Time(obstime[counter]).mean()
+            earth_pos = sunpy.coordinates.get_earth(mean_time)
+            frame_hpc = sunpy.coordinates.Helioprojective(obstime=mean_time, observer=earth_pos)
+            coord_hpc = SkyCoord(coords_section[..., 0] * u.arcsec,
+                                 coords_section[..., 1] * u.arcsec,
+                                 frame=frame_hpc)
+
+            interpolated_HMI[:, slit_indexes[section_start]:slit_indexes[section_end]][::-1, :] = interpolate_sunpy(
+                coord_hpc,
+                hmi_image,
+                hmi_wcs).T
+            counter += 1
+
+    if flag:
+        S0 = np.zeros_like(hinode_B)
+        S0[abs(hinode_B) > 80] = 1
+
+        S1 = gf(S0, sigma=0.8)
+
+        S2 = np.zeros_like(S1)
+        S2[S1 > 0.7] = 1
+
+        Q = np.sum(abs(interpolated_HMI[::-1]) * S2)
+
+        return 1 / Q
+
+    else:
+        return interpolated_HMI[::-1]
+
+
 def plot_and_viz_compare(hinode_B,
                          HMI_B):
     """
@@ -611,7 +724,7 @@ def minimize(initial_guess,
         if converged, return best fit paramters
     """
 
-    x = scipy_minimize(assemble_and_compare_interpolated_HMI_by_slit,
+    x = scipy_minimize(assemble_and_compare_interpolated_HMI_by_sections,
                        x0=initial_guess,
                        method='Nelder-Mead',
                        args=(slits_sorted,
@@ -929,7 +1042,7 @@ def run(path_to_slits,
     :param p0:
         initial guess for parameters.
     :param bounds:
-        a list of floats, initial bounds around which to search for parameters. Defualts to none and use wide bounds.
+        a list of floats, initial bounds around which to search for parameters. Defaults to none and use wide bounds.
         Update if you want to use tighter bounds in parameter search.
     :param path_to_sunpy:
         a string, path to where sunpy data is to be saved.
@@ -942,9 +1055,9 @@ def run(path_to_slits,
         bool, whether to save fitted parameters. Saves as a fits file wherever script is run, format is
         [x_cen, y_cen, p_x, p_y, theta].
     :param verbose:
-        bool, whether to output progress messages to console. Defualt is true.
+        bool, whether to output progress messages to console. Default is true.
     :param gui:
-        a bool, whether to use GUI in between initial and final fit to roughly vizualize alignment
+        a bool, whether to use GUI in between initial and final fit to roughly visualize alignment
     :param remove_HMI:
 
 
@@ -956,9 +1069,8 @@ def run(path_to_slits,
     slits_sorted = sorted(slits)  # sort in time via name - this may not be necessary, but just to make sure
     N_slits = len(slits_sorted)
 
-    # sizex = fits.open(path_to_slits + '/' + sorted(os.listdir(path_to_slits))[-1])[0].header['SLITINDX'] + 1
-    # TODO: resolve this, testing 192 temp
-    sizex = 192
+    # TODO: work on resolving this, will break if last slit is missing..... need to find better header usage
+    sizex = fits.open(path_to_slits + '/' + sorted(os.listdir(path_to_slits))[-1])[0].header['SLITINDX'] + 1
     sizey = fits.open(path_to_slits + '/' + sorted(os.listdir(path_to_slits))[-1])[0].data.shape[1]
 
     sizes = (sizex, sizey)
@@ -980,8 +1092,8 @@ def run(path_to_slits,
         print(50 * '-')
         print('Performing Initial Rough Alignment')
 
-    initial_xcen = fits.open(path_to_slits + '/' + sorted(os.listdir(path_to_slits))[0])[0].header['XCEN']
-    initial_ycen = fits.open(path_to_slits + '/' + sorted(os.listdir(path_to_slits))[0])[0].header['YCEN']
+    initial_xcen = fits.open(path_to_slits + '/' + slits_sorted[len(slits_sorted) // 2])[0].header['XCEN']
+    initial_ycen = fits.open(path_to_slits + '/' + slits_sorted[len(slits_sorted) // 2])[0].header['YCEN']
 
     if bounds is None:
         bounds = [(p0[0] - 40, p0[0] + 40), (p0[1] - 40, p0[1] + 40), (-0.2, 0.2), (-0.2, 0.2), (-4, 4)]
@@ -1023,6 +1135,12 @@ def run(path_to_slits,
                  hmiy.value,
                  output,
                  hinode_B)
+
+        parameter_text_filename = 'parameters_text.txt'
+        if not os.path.exists(parameter_text_filename):
+            # File does not exist, so create it
+            with open(parameter_text_filename, 'w') as f:
+                pass
 
         with open('parameters_text.txt', 'r') as file:
             content = file.read()
@@ -1067,7 +1185,7 @@ def run(path_to_slits,
 
     if verbose:
         print('Minimized: ' + str(converged))
-        print('Final Parameters: ' + str(parameters))
+        print('Finœal Parameters: ' + str(parameters))
 
     if not converged:
         raise Exception('Failed to Solve. Exiting.')
@@ -1077,17 +1195,17 @@ def run(path_to_slits,
         if verbose:
             print(50 * '-')
             print('Vizualizing Final Solution:')
-        final_HMI = assemble_and_compare_interpolated_HMI_by_slit(parameters,
-                                                                  slits_sorted,
-                                                                  path_to_slits,
-                                                                  all_HMI_data,
-                                                                  hmi_wcs,
-                                                                  hinode_B,
-                                                                  closest_HMI_index,
-                                                                  slit_indexes,
-                                                                  sizes,
-                                                                  obstime,
-                                                                  False)
+        final_HMI = assemble_and_compare_interpolated_HMI_by_sections(parameters,
+                                                                      slits_sorted,
+                                                                      path_to_slits,
+                                                                      all_HMI_data,
+                                                                      hmi_wcs,
+                                                                      hinode_B,
+                                                                      closest_HMI_index,
+                                                                      slit_indexes,
+                                                                      sizes,
+                                                                      obstime,
+                                                                      False)
 
         plot_and_viz_compare(hinode_B, final_HMI)
 
