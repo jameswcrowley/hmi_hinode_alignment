@@ -25,6 +25,7 @@ def get_coordinates(slits,
                     deltax,
                     deltay,
                     path_to_slits,
+                    sizex,
                     sizey,
                     theta=0):
     """
@@ -48,7 +49,6 @@ def get_coordinates(slits,
         a numpy array, of shape (N_slits, 2, sizey). HPC coordinates of each coordinate,
         (N_slits, x/y, position along slit)
     """
-    sizex = len(slits)
 
     coordinates = np.zeros((sizex, sizey, 2))
 
@@ -63,6 +63,7 @@ def get_coordinates(slits,
         index = temp_header['SLITINDX']
 
         temp_coordinates = get_slit_coordinates(index,
+                                                sizey,
                                                 px,
                                                 deltax,
                                                 deltay,
@@ -74,6 +75,7 @@ def get_coordinates(slits,
 
 
 def get_slit_coordinates(index,
+                         sizey,
                          px,
                          deltax,
                          deltay,
@@ -99,11 +101,11 @@ def get_slit_coordinates(index,
     :return slit coordinates:
         a numpy array of shape
     """
-    x_slit_indices = np.ones(192) * 0.5
-    y_slit_indices = np.arange(-96, 96, 1) * (px + deltay)
+    x_slit_indices = np.ones(sizey) * 0.5
+    y_slit_indices = np.arange(-sizey//2, sizey//2, 1) * (px + deltay)
 
     # roll slit by p:
-    slit_coordinates = np.zeros((192, 2))
+    slit_coordinates = np.zeros((sizey, 2))
     slit_coordinates[:, 0] = x_slit_indices * np.cos(p * np.pi / 180) - y_slit_indices * np.sin(p * np.pi / 180)
     slit_coordinates[:, 1] = x_slit_indices * np.sin(p * np.pi / 180) + y_slit_indices * np.cos(p * np.pi / 180)
 
@@ -363,6 +365,7 @@ def assemble_and_compare_interpolated_HMI(parameters,
                                                  parameters[2],
                                                  parameters[3],
                                                  path_to_slits,
+                                                 index2 - index1,
                                                  sizes[1],
                                                  parameters[4])
 
@@ -489,6 +492,7 @@ def assemble_and_compare_interpolated_HMI_by_slit(parameters,
                                              parameters[2],
                                              parameters[3],
                                              path_to_slits,
+                                             1,
                                              sizes[1],
                                              parameters[4])
 
@@ -601,6 +605,7 @@ def assemble_and_compare_interpolated_HMI_by_sections(parameters,
                                              parameters[2],
                                              parameters[3],
                                              path_to_slits,
+                                             section_end - section_start,
                                              sizes[1],
                                              parameters[4])
 
@@ -818,7 +823,7 @@ def show_gui(parameters,
         ax=axamp,
         label="Range",
         valmin=1,
-        valmax=400,
+        valmax=500,
         valinit=initial_width,
         orientation="horizontal"
     )
@@ -827,8 +832,8 @@ def show_gui(parameters,
     x0_slider = Slider(
         ax=axamp,
         label=r"$x_0$",
-        valmin=initial_x0 - 100,
-        valmax=initial_x0 + 100,
+        valmin=initial_x0 - 300,
+        valmax=initial_x0 + 300,
         valinit=initial_x0,
         orientation="horizontal"
     )
@@ -837,8 +842,8 @@ def show_gui(parameters,
     y0_slider = Slider(
         ax=axamp,
         label=r"$y_0$",
-        valmin=initial_y0 - 100,
-        valmax=initial_y0 + 100,
+        valmin=initial_y0 - 300,
+        valmax=initial_y0 + 300,
         valinit=initial_y0,
         orientation="horizontal"
     )
@@ -879,7 +884,7 @@ def show_gui(parameters,
         ax=axamp,
         label="hmi clim",
         valmin=0,
-        valmax=300,
+        valmax=500,
         valinit=100,
         orientation="vertical"
     )
@@ -889,7 +894,7 @@ def show_gui(parameters,
         ax=axamp,
         label="SP clim",
         valmin=0,
-        valmax=300,
+        valmax=1000,
         valinit=100,
         orientation="vertical"
     )
@@ -1070,10 +1075,12 @@ def run(path_to_slits,
     N_slits = len(slits_sorted)
 
     # TODO: work on resolving this, will break if last slit is missing..... need to find better header usage
-    sizex = fits.open(path_to_slits + '/' + sorted(os.listdir(path_to_slits))[-1])[0].header['SLITINDX'] + 1
-    sizey = fits.open(path_to_slits + '/' + sorted(os.listdir(path_to_slits))[-1])[0].data.shape[1]
+    sizex = fits.open(path_to_slits + '/' + slits_sorted[-1])[0].header['SLITINDX'] + 1
+    sizey = fits.open(path_to_slits + '/' + slits_sorted[-1])[0].data.shape[1]
 
     sizes = (sizex, sizey)
+
+    print(sizes)
 
     if verbose:
         print('Fits slits read in. Number of slits: ' + str(N_slits))
@@ -1111,6 +1118,7 @@ def run(path_to_slits,
                                          deltax=deltax,
                                          deltay=deltay,
                                          path_to_slits=path_to_slits,
+                                         sizex=sizex,
                                          sizey=sizey,
                                          theta=theta)
         initialx = initial_coords[:, :, 0]
@@ -1185,7 +1193,7 @@ def run(path_to_slits,
 
     if verbose:
         print('Minimized: ' + str(converged))
-        print('Finœal Parameters: ' + str(parameters))
+        print('Final Parameters: ' + str(parameters))
 
     if not converged:
         raise Exception('Failed to Solve. Exiting.')
@@ -1225,6 +1233,7 @@ def run(path_to_slits,
                                             deltax=deltax,
                                             deltay=deltay,
                                             path_to_slits=path_to_slits,
+                                            sizex = sizex,
                                             sizey=sizey,
                                             theta=theta)
 
