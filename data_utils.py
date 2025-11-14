@@ -102,7 +102,7 @@ def get_slit_coordinates(index,
         a numpy array of shape
     """
     x_slit_indices = np.ones(sizey) * 0.5
-    y_slit_indices = np.arange(-sizey//2, sizey//2, 1) * (px + deltay)
+    y_slit_indices = np.arange(-sizey // 2, sizey // 2, 1) * (px + deltay)
 
     # roll slit by p:
     slit_coordinates = np.zeros((sizey, 2))
@@ -532,17 +532,17 @@ def assemble_and_compare_interpolated_HMI_by_slit(parameters,
         return interpolated_HMI[::-1]
 
 
-def assemble_and_compare_interpolated_HMI_by_sections(parameters,
-                                                      slits_sorted,
-                                                      path_to_slits,
-                                                      all_HMI_data,
-                                                      hmi_wcs,
-                                                      hinode_B,
-                                                      closest_index,
-                                                      slit_indexes,
-                                                      sizes,
-                                                      obstime,
-                                                      flag):
+def assemble_and_compare_interpolated_HMI_by_sections_local(parameters,
+                                                            slits_sorted,
+                                                            path_to_slits,
+                                                            all_HMI_data,
+                                                            hmi_wcs,
+                                                            hinode_B,
+                                                            closest_index,
+                                                            slit_indexes,
+                                                            sizes,
+                                                            obstime,
+                                                            flag):
     """
     Assemble Interpolated HMI (by sections):
         Calls interpolate multiple times, for each HMI 45s magnetogram closest to at least one of the Hinode fits slits
@@ -584,6 +584,7 @@ def assemble_and_compare_interpolated_HMI_by_sections(parameters,
     """
 
     interpolated_HMI = np.zeros((sizes[0], sizes[1]))
+    closest_index_local = np.copy(closest_index)
 
     where_slits_missing = (np.where((np.diff(slit_indexes) - 1) != 0)[0] + 1)
     end = len(slit_indexes)
@@ -597,37 +598,51 @@ def assemble_and_compare_interpolated_HMI_by_sections(parameters,
         else:
             section_start = sections_to_fill_indexes[i - 1]
         section_end = section_i - 1
-        if closest_index[i] == -1:
-            pass
-        else:  # there are HMI maps corresponding to these slits
+        hmi_indices_in_this_section = closest_index_local[section_start:section_end]
+        slit_indices_in_this_section = slit_indexes[section_start:section_end]
 
-            coords_section = get_coordinates(slits_sorted[section_start:section_end],
-                                             parameters[2],
-                                             parameters[3],
-                                             path_to_slits,
-                                             section_end - section_start,
-                                             sizes[1],
-                                             parameters[4])
+        # Basically repeating my original method, since each of these should be a complete section without missing slits
 
-            coords_section[..., 0] += parameters[0]
-            coords_section[..., 1] += parameters[1]
-            coords_section = np.sort(coords_section, axis=0)
+        for hmi_index_i in np.unique(hmi_indices_in_this_section):
+            print(hmi_index_i)
 
-            hmi_image = all_HMI_data[..., closest_index[counter]]
-            hmi_wcs = hmi_wcs
+            slit_indices_in_this_hmi_frame = np.array(np.where(np.array(hmi_indices_in_this_section) == hmi_index_i)[0])
 
-            mean_time = Time(obstime[counter]).mean()
-            earth_pos = sunpy.coordinates.get_earth(mean_time)
-            frame_hpc = sunpy.coordinates.Helioprojective(obstime=mean_time, observer=earth_pos)
-            coord_hpc = SkyCoord(coords_section[..., 0] * u.arcsec,
-                                 coords_section[..., 1] * u.arcsec,
-                                 frame=frame_hpc)
+            if slit_indices_in_this_hmi_frame.size == 0:
+                print('empty')
+                pass
+            else:
+                # the +1 throughout makes it overlap by 1 slit position so there are no gaps between adjacent HMI
+                # frames (but gets overwritten with the correct data if it exists).
+                coords_section = get_coordinates(
+                    slits_sorted[slit_indices_in_this_hmi_frame[0]:slit_indices_in_this_hmi_frame[-1] + 1],
+                    parameters[2],
+                    parameters[3],
+                    path_to_slits,
+                    slit_indices_in_this_hmi_frame[-1] - slit_indices_in_this_hmi_frame[0] + 1,
+                    sizes[1],
+                    parameters[4])
 
-            interpolated_HMI[:, slit_indexes[section_start]:slit_indexes[section_end]][::-1, :] = interpolate_sunpy(
-                coord_hpc,
-                hmi_image,
-                hmi_wcs).T
-            counter += 1
+                coords_section[..., 0] += parameters[0]
+                coords_section[..., 1] += parameters[1]
+                coords_section = np.sort(coords_section, axis=0)
+
+                hmi_image = all_HMI_data[..., hmi_index_i]
+                hmi_wcs = hmi_wcs
+
+                mean_time = Time(obstime[counter]).mean()
+                earth_pos = sunpy.coordinates.get_earth(mean_time)
+                frame_hpc = sunpy.coordinates.Helioprojective(obstime=mean_time, observer=earth_pos)
+                coord_hpc = SkyCoord(coords_section[..., 0] * u.arcsec,
+                                     coords_section[..., 1] * u.arcsec,
+                                     frame=frame_hpc)
+
+                interpolated_HMI[slit_indices_in_this_hmi_frame[0]:slit_indices_in_this_hmi_frame[-1] + 1] = \
+                    interpolate_sunpy(coord_hpc,
+                                      hmi_image,
+                                      hmi_wcs)
+
+                counter += 1
 
     if flag:
         S0 = np.zeros_like(hinode_B)
@@ -643,7 +658,7 @@ def assemble_and_compare_interpolated_HMI_by_sections(parameters,
         return 1 / Q
 
     else:
-        return interpolated_HMI[::-1]
+        return interpolated_HMI
 
 
 def plot_and_viz_compare(hinode_B,
@@ -1233,7 +1248,7 @@ def run(path_to_slits,
                                             deltax=deltax,
                                             deltay=deltay,
                                             path_to_slits=path_to_slits,
-                                            sizex = sizex,
+                                            sizex=sizex,
                                             sizey=sizey,
                                             theta=theta)
 
