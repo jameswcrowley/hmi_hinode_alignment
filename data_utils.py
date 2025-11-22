@@ -49,7 +49,6 @@ def get_coordinates(slits,
         a numpy array, of shape (N_slits, 2, sizey). HPC coordinates of each coordinate,
         (N_slits, x/y, position along slit)
     """
-
     coordinates = np.zeros((sizex, sizey, 2))
 
     first_header = fits.open(path_to_slits + slits[0])[0].header
@@ -532,17 +531,17 @@ def assemble_and_compare_interpolated_HMI_by_slit(parameters,
         return interpolated_HMI[::-1]
 
 
-def assemble_and_compare_interpolated_HMI_by_sections_local(parameters,
-                                                            slits_sorted,
-                                                            path_to_slits,
-                                                            all_HMI_data,
-                                                            hmi_wcs,
-                                                            hinode_B,
-                                                            closest_index,
-                                                            slit_indexes,
-                                                            sizes,
-                                                            obstime,
-                                                            flag):
+def assemble_and_compare_interpolated_HMI_by_sections(parameters,
+                                                      slits_sorted,
+                                                      path_to_slits,
+                                                      all_HMI_data,
+                                                      hmi_wcs,
+                                                      hinode_B,
+                                                      closest_index,
+                                                      slit_indexes,
+                                                      sizes,
+                                                      obstime,
+                                                      flag):
     """
     Assemble Interpolated HMI (by sections):
         Calls interpolate multiple times, for each HMI 45s magnetogram closest to at least one of the Hinode fits slits
@@ -604,8 +603,6 @@ def assemble_and_compare_interpolated_HMI_by_sections_local(parameters,
         # Basically repeating my original method, since each of these should be a complete section without missing slits
 
         for hmi_index_i in np.unique(hmi_indices_in_this_section):
-            print(hmi_index_i)
-
             slit_indices_in_this_hmi_frame = np.array(np.where(np.array(hmi_indices_in_this_section) == hmi_index_i)[0])
 
             if slit_indices_in_this_hmi_frame.size == 0:
@@ -653,12 +650,12 @@ def assemble_and_compare_interpolated_HMI_by_sections_local(parameters,
         S2 = np.zeros_like(S1)
         S2[S1 > 0.7] = 1
 
-        Q = np.sum(abs(interpolated_HMI[::-1]) * S2)
+        Q = np.sum(abs(interpolated_HMI.T) * S2)
 
         return 1 / Q
 
     else:
-        return interpolated_HMI
+        return interpolated_HMI.T
 
 
 def plot_and_viz_compare(hinode_B,
@@ -1169,6 +1166,9 @@ def run(path_to_slits,
             content = file.read()
             numbers_str = content.split()  # Split by any whitespace
             p0 = [float(num) for num in numbers_str]
+
+        # update the bounds:
+        bounds = [(p0[0] - 60, p0[0] + 60), (p0[1] - 60, p0[1] + 60), (-0.2, 0.2), (-0.2, 0.2), (-4, 4)]
 
         if verbose:
             print(50 * '-')
