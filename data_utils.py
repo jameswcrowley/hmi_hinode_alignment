@@ -793,6 +793,8 @@ def show_gui(parameters,
              hinode_B
              ):
     """
+    NOTE: New interpolation method temporarily broke the GUI's geometry (Nov 2025). To be fixed SOON! :)
+
     Code to show a small GUI showing the initial rough alignment. Values from sliders will
     :param HMI_data: numpy array of single HMI data in fits format to plot as background.
     :param hmix: numpy array of HPC coordinates corresponding to HMI x coords
@@ -804,8 +806,9 @@ def show_gui(parameters,
     :return: parameters:
         a list of parameters, returned when done button in gui is pressed
     """
-    initial_width = 100
+
     initial_x0, initial_y0, initial_deltax, initial_deltay, initial_theta = parameters
+    initial_width = initial_deltax * hinode_B.shape[0]
     data = HMI_data
 
     middlex = np.mean(coords[:, :, 0])
@@ -864,8 +867,8 @@ def show_gui(parameters,
     deltax_slider = Slider(
         ax=axamp,
         label=r"$\delta_x$",
-        valmin=initial_deltax - 0.1,
-        valmax=initial_deltax + 0.1,
+        valmin=initial_deltax - 0.2,
+        valmax=initial_deltax + 0.2,
         valinit=initial_deltax,
         orientation="horizontal"
     )
@@ -874,8 +877,8 @@ def show_gui(parameters,
     deltay_slider = Slider(
         ax=axamp,
         label=r"$\delta_y$",
-        valmin=initial_deltay - 0.1,
-        valmax=initial_deltay + 0.1,
+        valmin=initial_deltay - 0.2,
+        valmax=initial_deltay + 0.2,
         valinit=initial_deltay,
         orientation="horizontal"
     )
@@ -1167,9 +1170,6 @@ def run(path_to_slits,
             numbers_str = content.split()  # Split by any whitespace
             p0 = [float(num) for num in numbers_str]
 
-        # update the bounds:
-        bounds = [(p0[0] - 60, p0[0] + 60), (p0[1] - 60, p0[1] + 60), (-0.2, 0.2), (-0.2, 0.2), (-4, 4)]
-
         if verbose:
             print(50 * '-')
             print('Performing Final Fit')
@@ -1193,6 +1193,10 @@ def run(path_to_slits,
         print('Initial Rough Alignment Complete.')
         print('Estimate of parameters: ' + str(p0))
         print(50 * '-')
+
+    # update the bounds:
+    bounds = [(p0[0] - 60, p0[0] + 60), (p0[1] - 60, p0[1] + 60), (p0[2] - 0.2, p0[2] + 0.2),
+              (p0[3] - 0.2, p0[3] + 0.2), (p0[4] - 5, p0[4] + 5)]
 
     converged, parameters = minimize(p0,
                                      slits_sorted,
