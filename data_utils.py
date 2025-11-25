@@ -25,6 +25,7 @@ def get_coordinates(slits,
                     deltax,
                     deltay,
                     path_to_slits,
+                    sizex,
                     sizey,
                     theta=0):
     """
@@ -48,8 +49,6 @@ def get_coordinates(slits,
         a numpy array, of shape (N_slits, 2, sizey). HPC coordinates of each coordinate,
         (N_slits, x/y, position along slit)
     """
-    sizex = len(slits)
-
     coordinates = np.zeros((sizex, sizey, 2))
 
     first_header = fits.open(path_to_slits + slits[0])[0].header
@@ -63,6 +62,7 @@ def get_coordinates(slits,
         index = temp_header['SLITINDX']
 
         temp_coordinates = get_slit_coordinates(index,
+                                                sizey,
                                                 px,
                                                 deltax,
                                                 deltay,
@@ -74,6 +74,7 @@ def get_coordinates(slits,
 
 
 def get_slit_coordinates(index,
+                         sizey,
                          px,
                          deltax,
                          deltay,
@@ -99,11 +100,11 @@ def get_slit_coordinates(index,
     :return slit coordinates:
         a numpy array of shape
     """
-    x_slit_indices = np.ones(192) * 0.5
-    y_slit_indices = np.arange(-96, 96, 1) * (px + deltay)
+    x_slit_indices = np.ones(sizey) * 0.5
+    y_slit_indices = np.arange(-sizey // 2, sizey // 2, 1) * (px + deltay)
 
     # roll slit by p:
-    slit_coordinates = np.zeros((192, 2))
+    slit_coordinates = np.zeros((sizey, 2))
     slit_coordinates[:, 0] = x_slit_indices * np.cos(p * np.pi / 180) - y_slit_indices * np.sin(p * np.pi / 180)
     slit_coordinates[:, 1] = x_slit_indices * np.sin(p * np.pi / 180) + y_slit_indices * np.cos(p * np.pi / 180)
 
@@ -363,6 +364,7 @@ def assemble_and_compare_interpolated_HMI(parameters,
                                                  parameters[2],
                                                  parameters[3],
                                                  path_to_slits,
+                                                 index2 - index1,
                                                  sizes[1],
                                                  parameters[4])
 
@@ -489,6 +491,7 @@ def assemble_and_compare_interpolated_HMI_by_slit(parameters,
                                              parameters[2],
                                              parameters[3],
                                              path_to_slits,
+                                             1,
                                              sizes[1],
                                              parameters[4])
 
@@ -580,6 +583,7 @@ def assemble_and_compare_interpolated_HMI_by_sections(parameters,
     """
 
     interpolated_HMI = np.zeros((sizes[0], sizes[1]))
+    closest_index_local = np.copy(closest_index)
 
     where_slits_missing = (np.where((np.diff(slit_indexes) - 1) != 0)[0] + 1)
     end = len(slit_indexes)
@@ -593,36 +597,49 @@ def assemble_and_compare_interpolated_HMI_by_sections(parameters,
         else:
             section_start = sections_to_fill_indexes[i - 1]
         section_end = section_i - 1
-        if closest_index[i] == -1:
-            pass
-        else:  # there are HMI maps corresponding to these slits
+        hmi_indices_in_this_section = closest_index_local[section_start:section_end]
+        slit_indices_in_this_section = slit_indexes[section_start:section_end]
 
-            coords_section = get_coordinates(slits_sorted[section_start:section_end],
-                                             parameters[2],
-                                             parameters[3],
-                                             path_to_slits,
-                                             sizes[1],
-                                             parameters[4])
+        # Basically repeating my original method, since each of these should be a complete section without missing slits
 
-            coords_section[..., 0] += parameters[0]
-            coords_section[..., 1] += parameters[1]
-            coords_section = np.sort(coords_section, axis=0)
+        for hmi_index_i in np.unique(hmi_indices_in_this_section):
+            slit_indices_in_this_hmi_frame = np.array(np.where(np.array(hmi_indices_in_this_section) == hmi_index_i)[0])
 
-            hmi_image = all_HMI_data[..., closest_index[counter]]
-            hmi_wcs = hmi_wcs
+            if slit_indices_in_this_hmi_frame.size == 0:
+                print('empty')
+                pass
+            else:
+                # the +1 throughout makes it overlap by 1 slit position so there are no gaps between adjacent HMI
+                # frames (but gets overwritten with the correct data if it exists).
+                coords_section = get_coordinates(
+                    slits_sorted[slit_indices_in_this_hmi_frame[0]:slit_indices_in_this_hmi_frame[-1] + 1],
+                    parameters[2],
+                    parameters[3],
+                    path_to_slits,
+                    slit_indices_in_this_hmi_frame[-1] - slit_indices_in_this_hmi_frame[0] + 1,
+                    sizes[1],
+                    parameters[4])
 
-            mean_time = Time(obstime[counter]).mean()
-            earth_pos = sunpy.coordinates.get_earth(mean_time)
-            frame_hpc = sunpy.coordinates.Helioprojective(obstime=mean_time, observer=earth_pos)
-            coord_hpc = SkyCoord(coords_section[..., 0] * u.arcsec,
-                                 coords_section[..., 1] * u.arcsec,
-                                 frame=frame_hpc)
+                coords_section[..., 0] += parameters[0]
+                coords_section[..., 1] += parameters[1]
+                coords_section = np.sort(coords_section, axis=0)
 
-            interpolated_HMI[:, slit_indexes[section_start]:slit_indexes[section_end]][::-1, :] = interpolate_sunpy(
-                coord_hpc,
-                hmi_image,
-                hmi_wcs).T
-            counter += 1
+                hmi_image = all_HMI_data[..., hmi_index_i]
+                hmi_wcs = hmi_wcs
+
+                mean_time = Time(obstime[counter]).mean()
+                earth_pos = sunpy.coordinates.get_earth(mean_time)
+                frame_hpc = sunpy.coordinates.Helioprojective(obstime=mean_time, observer=earth_pos)
+                coord_hpc = SkyCoord(coords_section[..., 0] * u.arcsec,
+                                     coords_section[..., 1] * u.arcsec,
+                                     frame=frame_hpc)
+
+                interpolated_HMI[slit_indices_in_this_hmi_frame[0]:slit_indices_in_this_hmi_frame[-1] + 1] = \
+                    interpolate_sunpy(coord_hpc,
+                                      hmi_image,
+                                      hmi_wcs)
+
+                counter += 1
 
     if flag:
         S0 = np.zeros_like(hinode_B)
@@ -633,12 +650,12 @@ def assemble_and_compare_interpolated_HMI_by_sections(parameters,
         S2 = np.zeros_like(S1)
         S2[S1 > 0.7] = 1
 
-        Q = np.sum(abs(interpolated_HMI[::-1]) * S2)
+        Q = np.sum(abs(interpolated_HMI.T) * S2)
 
         return 1 / Q
 
     else:
-        return interpolated_HMI[::-1]
+        return interpolated_HMI.T
 
 
 def plot_and_viz_compare(hinode_B,
@@ -776,6 +793,8 @@ def show_gui(parameters,
              hinode_B
              ):
     """
+    NOTE: New interpolation method temporarily broke the GUI's geometry (Nov 2025). To be fixed SOON! :)
+
     Code to show a small GUI showing the initial rough alignment. Values from sliders will
     :param HMI_data: numpy array of single HMI data in fits format to plot as background.
     :param hmix: numpy array of HPC coordinates corresponding to HMI x coords
@@ -787,8 +806,9 @@ def show_gui(parameters,
     :return: parameters:
         a list of parameters, returned when done button in gui is pressed
     """
-    initial_width = 100
+
     initial_x0, initial_y0, initial_deltax, initial_deltay, initial_theta = parameters
+    initial_width = initial_deltax * hinode_B.shape[0]
     data = HMI_data
 
     middlex = np.mean(coords[:, :, 0])
@@ -818,7 +838,7 @@ def show_gui(parameters,
         ax=axamp,
         label="Range",
         valmin=1,
-        valmax=400,
+        valmax=500,
         valinit=initial_width,
         orientation="horizontal"
     )
@@ -827,8 +847,8 @@ def show_gui(parameters,
     x0_slider = Slider(
         ax=axamp,
         label=r"$x_0$",
-        valmin=initial_x0 - 100,
-        valmax=initial_x0 + 100,
+        valmin=initial_x0 - 300,
+        valmax=initial_x0 + 300,
         valinit=initial_x0,
         orientation="horizontal"
     )
@@ -837,8 +857,8 @@ def show_gui(parameters,
     y0_slider = Slider(
         ax=axamp,
         label=r"$y_0$",
-        valmin=initial_y0 - 100,
-        valmax=initial_y0 + 100,
+        valmin=initial_y0 - 300,
+        valmax=initial_y0 + 300,
         valinit=initial_y0,
         orientation="horizontal"
     )
@@ -847,8 +867,8 @@ def show_gui(parameters,
     deltax_slider = Slider(
         ax=axamp,
         label=r"$\delta_x$",
-        valmin=initial_deltax - 0.1,
-        valmax=initial_deltax + 0.1,
+        valmin=initial_deltax - 0.2,
+        valmax=initial_deltax + 0.2,
         valinit=initial_deltax,
         orientation="horizontal"
     )
@@ -857,8 +877,8 @@ def show_gui(parameters,
     deltay_slider = Slider(
         ax=axamp,
         label=r"$\delta_y$",
-        valmin=initial_deltay - 0.1,
-        valmax=initial_deltay + 0.1,
+        valmin=initial_deltay - 0.2,
+        valmax=initial_deltay + 0.2,
         valinit=initial_deltay,
         orientation="horizontal"
     )
@@ -879,7 +899,7 @@ def show_gui(parameters,
         ax=axamp,
         label="hmi clim",
         valmin=0,
-        valmax=300,
+        valmax=500,
         valinit=100,
         orientation="vertical"
     )
@@ -889,7 +909,7 @@ def show_gui(parameters,
         ax=axamp,
         label="SP clim",
         valmin=0,
-        valmax=300,
+        valmax=1000,
         valinit=100,
         orientation="vertical"
     )
@@ -1070,10 +1090,12 @@ def run(path_to_slits,
     N_slits = len(slits_sorted)
 
     # TODO: work on resolving this, will break if last slit is missing..... need to find better header usage
-    sizex = fits.open(path_to_slits + '/' + sorted(os.listdir(path_to_slits))[-1])[0].header['SLITINDX'] + 1
-    sizey = fits.open(path_to_slits + '/' + sorted(os.listdir(path_to_slits))[-1])[0].data.shape[1]
+    sizex = fits.open(path_to_slits + '/' + slits_sorted[-1])[0].header['SLITINDX'] + 1
+    sizey = fits.open(path_to_slits + '/' + slits_sorted[-1])[0].data.shape[1]
 
     sizes = (sizex, sizey)
+
+    print(sizes)
 
     if verbose:
         print('Fits slits read in. Number of slits: ' + str(N_slits))
@@ -1111,6 +1133,7 @@ def run(path_to_slits,
                                          deltax=deltax,
                                          deltay=deltay,
                                          path_to_slits=path_to_slits,
+                                         sizex=sizex,
                                          sizey=sizey,
                                          theta=theta)
         initialx = initial_coords[:, :, 0]
@@ -1171,6 +1194,10 @@ def run(path_to_slits,
         print('Estimate of parameters: ' + str(p0))
         print(50 * '-')
 
+    # update the bounds:
+    bounds = [(p0[0] - 60, p0[0] + 60), (p0[1] - 60, p0[1] + 60), (p0[2] - 0.2, p0[2] + 0.2),
+              (p0[3] - 0.2, p0[3] + 0.2), (p0[4] - 5, p0[4] + 5)]
+
     converged, parameters = minimize(p0,
                                      slits_sorted,
                                      path_to_slits,
@@ -1185,7 +1212,7 @@ def run(path_to_slits,
 
     if verbose:
         print('Minimized: ' + str(converged))
-        print('Finœal Parameters: ' + str(parameters))
+        print('Final Parameters: ' + str(parameters))
 
     if not converged:
         raise Exception('Failed to Solve. Exiting.')
@@ -1225,6 +1252,7 @@ def run(path_to_slits,
                                             deltax=deltax,
                                             deltay=deltay,
                                             path_to_slits=path_to_slits,
+                                            sizex=sizex,
                                             sizey=sizey,
                                             theta=theta)
 
